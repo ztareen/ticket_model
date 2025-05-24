@@ -1,6 +1,8 @@
 def seatingInfoGetter(event, event_IDs):
-    url_second = "https://api.seatgeek.com/2/events/section_info/:eventId"
-    event_id = event.get("id")
+    url_second = "https://api.seatgeek.com/2/events/section_info/:event_IDs"
+    section = event.get("sections")
+
+    print(f"Section: {section}")
 
 
 
