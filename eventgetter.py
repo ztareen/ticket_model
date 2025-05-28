@@ -44,6 +44,13 @@ for event in events:
 
 
     print(f"The URL for this would be {full_url}")
+    url2 = full_url
+    response2 = requests.get(url2)
+    data = response2.json()
+    sections = data["sections"]
+
+    for section_name, rows in sections.items():
+        seatingInfoGetter(section_name, rows)
     i = i + 1
 
 
