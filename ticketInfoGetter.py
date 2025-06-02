@@ -12,6 +12,18 @@ def ticketInfoGetter(event):
     promo = event.get("event_promotion") or {}
     promo_headline = promo.get("headline", "No promotion")
 
+    stats = event.get("stats", {})
+    lowest = stats.get("lowest_price")
+    average = stats.get("average_price")
+    highest = stats.get("highest_price")
+    listings = stats.get("listing_count")
+    event_count = stats.get("event_count")
+
+    print(f"Lowest Price: {lowest}")
+    print(f"Highest Price: {highest}")
+    print(f"Average Price: {average}")
+    print(f"Number of Listings: {listings}")
+
     teams = [p["name"] for p in event.get("performers", [])]
 
     print(f"Event ID: {event_id}")

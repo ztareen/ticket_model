@@ -16,10 +16,10 @@ from seatingInfoGetter import seatingInfoGetter
 #}
 
 event_IDs_final = []
-seatingURLs = []
+seatingURLs = [] 
 
 # Get first page of MLB-related events
-url = "https://api.seatgeek.com/2/events?performers.slug=seattle-mariners&client_id=NTAzNDk2MTZ8MTc0ODAyMzY5MS41NzUwNDY"
+url = "https://api.seatgeek.com/2/events?performers.slug=seattle-mariners&listing_count.gt=0&client_id=NTAzNDk2MTZ8MTc0ODAyMzY5MS41NzUwNDY"
 
 
 response = requests.get(url)
@@ -51,7 +51,22 @@ for event in events:
 
     for section_name, rows in sections.items():
         seatingInfoGetter(section_name, rows)
+
+    #if data["lowest_price"] < 30 and data["lowest_price"] > 0:
+    #    i = 3
+    #elif data["lowest_price"] < 60 and data["lowest_price"] >= 30:
+    #    i = 10
+    #elif data["lowest_price"] < 90 and data["lowest_price"] >= 60:
+    #    i = 20
+    #elif data["lowest_price"] < 150 and data["lowest_price"] >= 90:
+    #    i = 30
+    #elif data["lowest_price"] < 250 and data["lowest_price"] >= 150:
+    #    i = 40
+    #elif data["lowest_price"] <= 0:
+    #    i = 0; #error
+
     i = i + 1
+
 
 
 #for section in sections:

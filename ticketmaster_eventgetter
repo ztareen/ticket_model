@@ -1,0 +1,72 @@
+import requests
+import numpy as np
+import pandas as pd
+import json
+from datetime import datetime, timezone
+
+# from ticketInfoGetter import ticketInfoGetter
+# from seatingInfoGetter import seatingInfoGetter
+
+event_info_list = []
+seatingURLs = [] 
+
+keyword = "seattle_mariners"
+now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+url = f'https://app.ticketmaster.com/discovery/v2/events.json?apikey=KntBcmnLD8BBG0DpsV1GMMakFSFcoaof&keyword=Seattle%20Mariners&startDateTime={now_utc}&size=10'
+
+response = requests.get(url)
+
+if response.status_code != 200:
+    print(f"Request failed with status code {response.status_code}")
+    exit()
+
+data = response.json()
+
+try:
+    events = data["_embedded"]["events"]
+except (KeyError, IndexError) as e:
+    print("No event data found or structure changed:", e)
+    exit()
+
+for i, event in enumerate(events, start=1):
+    print(f"Event {i}: {event['name']}")
+
+    event_info = {
+        "name": event["name"],
+        "url": event["url"],
+        "start_date": event["dates"]["start"].get("localDate", ""),
+        "start_time": event["dates"]["start"].get("localTime", ""),
+        "datetime_utc": event["dates"]["start"].get("dateTime", ""),
+        "timezone": event["dates"].get("timezone", ""),
+        "ticket_status": event["dates"]["status"].get("code", ""),
+        "public_sale_start": event["sales"]["public"].get("startDateTime", ""),
+        "public_sale_end": event["sales"]["public"].get("endDateTime", ""),
+        "presales": [
+            {
+                "name": presale.get("name", ""),
+                "start": presale.get("startDateTime", ""),
+                "end": presale.get("endDateTime", "")
+            }
+            for presale in event["sales"].get("presales", [])
+        ],
+        "image": event["images"][0]["url"] if event.get("images") else "",
+        "info": event.get("info", ""),
+        "please_note": event.get("pleaseNote", ""),
+        "seatmap_url": event.get("seatmap", {}).get("staticUrl", ""),
+        "accessibility_info": event.get("accessibility", {}).get("info", ""),
+        "ticket_limit": event.get("ticketLimit", {}).get("info", "")
+    }
+
+
+event_info_list.append(event_info)
+
+print(event_info_list)
+
+dataFrameEvents = pd.DataFrame(event_info_list) #add columns for the variable names, and rows for each iteration of the for loop
+
+dataFrameEvents.to_csv('mydata.csv', index=False)
+
+#things to be done: Get rid of the garbage ahh shit like pinstripe pass or like premium seats or group tickets?
+# make sure that you are not just appending when the for loop is over but actually over time
+# see why the CSV is not saving the actual name values, and variable values and is instead just doing
+# the variable names
