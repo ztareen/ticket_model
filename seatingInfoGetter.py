@@ -1,7 +1,8 @@
 def seatingInfoGetter(section_name, rows):
-    #print(f"Section Name: {section_name}")
-  #  print(f"Rows: {rows}")
+    print(f"Section Name: {section_name}")
+    print(f"Rows: {rows}")
     i = 0
+
 
 #successful operation
 #{
