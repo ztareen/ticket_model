@@ -43,6 +43,8 @@ except (KeyError, IndexError) as e:
 
 for i, event in enumerate(events, start=1):
     name = event["name"]
+    event_id = event["id"]
+    print(event_id)
     if any(keyword.lower() in name.lower() for keyword in uselessKeywords):
         continue  # Skip unwanted variations
 
@@ -78,10 +80,18 @@ for i, event in enumerate(events, start=1):
         "accessibility_info": event.get("accessibility", {}).get("info", ""),
         "ticket_limit": event.get("ticketLimit", {}).get("info", ""),
         "official_ticket_url": event.get("url", "")  # Add this for clarity & access in dataframe
-        #standings of team factored into model
-        #playoffs
-        #rivalry games
+    
+
+
+
+                # 5 - Link to Ticketmaster + StubHub in order to actually purchase a ticket to the game
     }
+
+    url2 = (
+    f'https://app.ticketmaster.com/discovery/v2/events/{event_id}.json?apikey=KntBcmnLD8BBG0DpsV1GMMakFSFcoaof'
+    f'&id={event_id}'
+    )
+    print(url2)
     event_info_list.append(event_info)
 
 

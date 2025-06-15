@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
 import math
+from datetime import datetime
 
 # Initialize lists
 rows_date = []
@@ -12,6 +13,7 @@ rows_rows = []
 rows_quantity = []
 rows_price = []
 
+#days until event instead of date
 
 with open("C:/Users/zarak/Downloads/dataMariners/data4.csv", 'r') as file:
     csvreader = csv.reader(file)
@@ -24,4 +26,7 @@ with open("C:/Users/zarak/Downloads/dataMariners/data4.csv", 'r') as file:
         rows_rows.append(row[3])
         rows_quantity.append(row[4])
         rows_price.append(float(row[5]))
+
+
+
 

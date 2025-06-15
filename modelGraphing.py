@@ -13,7 +13,7 @@ rows_quantity = []
 rows_price = []
 
 # Load CSV
-with open("C:/Users/zarak/Downloads/DataSets/data4.csv", 'r') as file:
+with open("C:/Users/zarak/Downloads/dataMariners/data4.csv", 'r') as file:
     csvreader = csv.reader(file)
     header = next(csvreader)
     
