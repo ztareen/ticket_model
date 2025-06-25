@@ -16,7 +16,7 @@ rows_price = []
 with open("C:/Users/zarak/Downloads/dataMariners/data4.csv", 'r') as file:
     csvreader = csv.reader(file)
     header = next(csvreader)
-    
+        
     for row in csvreader:
         rows_date.append(row[0])
         rows_zone.append(row[1])
@@ -27,7 +27,8 @@ with open("C:/Users/zarak/Downloads/dataMariners/data4.csv", 'r') as file:
 
 # Get unique zones
 unique_zones = sorted(set(rows_zone))
-zone_colors = {zone: plt.cm.tab20(i % 20) for i, zone in enumerate(unique_zones)}
+colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan', 'magenta', 'yellow']
+zone_colors = {zone: colors[i % len(colors)] for i, zone in enumerate(unique_zones)}
 
 # Row Quality Index
 def compute_row_quality(zone, section, row):
@@ -81,5 +82,5 @@ for j in range(i+1, len(axs)):
     fig.delaxes(axs[j])
 
 fig.suptitle("Ticket Prices Over Time by Zone", fontsize=16)
-plt.tight_layout(rect=[0, 0, 1, 0.97])
+plt.tight_layout(rect=(0, 0, 1, 0.97))
 plt.show()
