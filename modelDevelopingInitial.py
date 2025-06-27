@@ -1,3 +1,4 @@
+
 import csv
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,7 +12,7 @@ from datetime import datetime
 # in order to do this properly, i will need to use "selenium"
 # once i got the file, i need to match it to the CSV file w/ the correct date and time
 
-# Initialize lists
+# Initialize lists for seat data
 rows_date = []
 rows_zone = []
 rows_section = []
@@ -21,7 +22,7 @@ rows_price = []
 
 #days until event instead of date
 
-with open("C:/Users/zarak/Downloads/dataMariners/data4.csv", 'r') as file:
+with open("C:/Users/zarak/Downloads/TestData_Mariners/Seattle_Mariners_at_Minnesota_Twins_2025-06-25.csv", 'r') as file:
     csvreader = csv.reader(file)
     header = next(csvreader)
     
@@ -33,97 +34,115 @@ with open("C:/Users/zarak/Downloads/dataMariners/data4.csv", 'r') as file:
         rows_quantity.append(row[4])
         rows_price.append(float(row[5]))
 
-# === STEP 2: Load event metadata into arrays ===
-# Initialize all arrays for event metadata
-event_id_list = []
-event_name_list = []
-url_list = []
-start_date_list = []
-start_time_list = []
-datetime_utc_list = []
-timezone_list = []
-ticket_status_list = []
-public_sale_start_list = []
-public_sale_end_list = []
-presales_list = []
-image_list = []
-info_list = []
-please_note_list = []
-seatmap_url_list = []
-accessibility_info_list = []
-ticket_limit_list = []
-venue_id_list = []
-venue_name_list = []
-city_list = []
-state_list = []
-country_list = []
-venue_timezone_list = []
-segment_list = []
-genre_list = []
-subGenre_list = []
-type_list = []
-location_list = []
-name_list = []
-dates_list = []
-sales_list = []
-priceRanges_list = []
-promoter_list = []
-promoters_list = []
-seatmap_list = []
-accessibility_list = []
-ticketLimit_list = []
-classifications_list = []
-externalLinks_list = []
+# === STEP 2: Extract matching event metadata ===
+# Define the target game we're looking for
+target_game = "Seattle_Mariners_at_Minnesota_Twins_2025-06-25"
+target_date = "2025-06-25"  # Extract date from filename
 
-event_csv_path = f"C:\\Users\\zarak\\OneDrive\\Documents\\GitHub\\ticket_model\\event_data_{datetime.now().strftime('%Y.%m.%d')}.csv"
+# Initialize individual variables for the matching event
+event_id = None
+event_name = None
+url = None
+start_date = None
+start_time = None
+datetime_utc = None
+timezone = None
+ticket_status = None
+public_sale_start = None
+public_sale_end = None
+presales = None
+image = None
+info = None
+please_note = None
+seatmap_url = None
+accessibility_info = None
+ticket_limit = None
+venue_id = None
+venue_name = None
+city = None
+state = None
+country = None
+venue_timezone = None
+segment = None
+genre = None
+subGenre = None
+type_val = None
+location = None
+name = None
+dates = None
+sales = None
+priceRanges = None
+promoter = None
+promoters = None
+seatmap = None
+accessibility = None
+ticketLimit = None
+classifications = None
+externalLinks = None
 
+#real code
+event_csv_path = f"C:/Users/zarak/OneDrive/Documents/GitHub/ticket_model/event_data_{datetime.now().strftime('%Y.%m.%d')}.csv"
+
+#for testing my model
+event_csv_path = f"C:/Users/zarak/OneDrive/Documents/GitHub/ticket_model/event_data_2025.06.24.csv"
+
+# Find and extract the matching event data
 with open(event_csv_path, 'r', encoding='utf-8') as file:
     csvreader = csv.DictReader(file)
     for row in csvreader:
-        event_id_list.append(row["event_id"])
-        event_name_list.append(row["event_name"])
-        url_list.append(row["url"])
-        start_date_list.append(row["start_date"])
-        start_time_list.append(row["start_time"])
-        datetime_utc_list.append(row["datetime_utc"])
-        timezone_list.append(row["timezone"])
-        ticket_status_list.append(row["ticket_status"])
-        public_sale_start_list.append(row["public_sale_start"])
-        public_sale_end_list.append(row["public_sale_end"])
-        presales_list.append(row["presales"])
-        image_list.append(row["image"])
-        info_list.append(row["info"])
-        please_note_list.append(row["please_note"])
-        seatmap_url_list.append(row["seatmap_url"])
-        accessibility_info_list.append(row["accessibility_info"])
-        ticket_limit_list.append(row["ticket_limit"])
-        venue_id_list.append(row["venue_id"])
-        venue_name_list.append(row["venue_name"])
-        city_list.append(row["city"])
-        state_list.append(row["state"])
-        country_list.append(row["country"])
-        venue_timezone_list.append(row["venue_timezone"])
-        segment_list.append(row["segment"])
-        genre_list.append(row["genre"])
-        subGenre_list.append(row["subGenre"])
-        type_list.append(row["type"])
-        location_list.append(row["location"])
-        name_list.append(row["name"])
-        dates_list.append(row["dates"])
-        sales_list.append(row["sales"])
-        priceRanges_list.append(row["priceRanges"])
-        promoter_list.append(row["promoter"])
-        promoters_list.append(row["promoters"])
-        seatmap_list.append(row["seatmap"])
-        accessibility_list.append(row["accessibility"])
-        ticketLimit_list.append(row["ticketLimit"])
-        classifications_list.append(row["classifications"])
-        externalLinks_list.append(row["externalLinks"])
+        # Check if this row matches our target date or event name
+        if (row["start_date"] == target_date or 
+            target_date in row.get("start_date", "") or
+            "Seattle_Mariners_at_Minnesota_Twins" in row.get("event_name", "")):
+            # Store all the values for the matching event
+            event_id = row["event_id"]
+            event_name = row["event_name"]
+            url = row["url"]
+            start_date = row["start_date"]
+            start_time = row["start_time"]
+            datetime_utc = row["datetime_utc"]
+            timezone = row["timezone"]
+            ticket_status = row["ticket_status"]
+            public_sale_start = row["public_sale_start"]
+            public_sale_end = row["public_sale_end"]
+            presales = row["presales"]
+            image = row["image"]
+            info = row["info"]
+            please_note = row["please_note"]
+            seatmap_url = row["seatmap_url"]
+            accessibility_info = row["accessibility_info"]
+            ticket_limit = row["ticket_limit"]
+            venue_id = row["venue_id"]
+            venue_name = row["venue_name"]
+            city = row["city"]
+            state = row["state"]
+            country = row["country"]
+            venue_timezone = row["venue_timezone"]
+            segment = row["segment"]
+            genre = row["genre"]
+            subGenre = row["subGenre"]
+            type_val = row["type"]  # renamed to avoid conflict with Python's type()
+            location = row["location"]
+            name = row["name"]
+            dates = row["dates"]
+            sales = row["sales"]
+            priceRanges = row["priceRanges"]
+            promoter = row["promoter"]
+            promoters = row["promoters"]
+            seatmap = row["seatmap"]
+            accessibility = row["accessibility"]
+            ticketLimit = row["ticketLimit"]
+            classifications = row["classifications"]
+            externalLinks = row["externalLinks"]
+            
+            break  # Stop after finding the first match
 
-
-
-
-print("event_name_list:", event_name_list)
-print("start_date_list:", start_date_list)
-print("start_time_list:", start_time_list)
-print("datetime_utc_list:", datetime_utc_list)
+# Print the extracted values to verify
+print("Found matching event:")
+print("event_name:", event_name)
+print("start_date:", start_date)
+print("start_time:", start_time)
+print("datetime_utc:", datetime_utc)
+print("venue_name:", venue_name)
+print("city:", city)
+print("state:", state)
