@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -34,3 +35,7 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+=======
+This is a summer project where I am going to try and optimize the user experience when trying to buy tickets from online sale websites.
+My goal is to use data science in order to let users know the optimal time to buy, thus enhancing the number of consumers for the resale sites as well as the price that the user pays.
+>>>>>>> 7afc63cb161765a99bdd2e2d393b43d66b7c2780
