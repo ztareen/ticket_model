@@ -54,7 +54,7 @@ class SeatDataScraper:
         """Check if driver is properly initialized"""
         if self.driver is None or self.wait is None:
             raise Exception("WebDriver not initialized. Call setup_driver() first.")
-        
+        #tgest if the driver is still running
     def login(self):
         """Login to seatdata.io"""
         try:

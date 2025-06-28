@@ -21,6 +21,7 @@ rows_quantity = []
 rows_price = []
 
 #days until event instead of date
+#test
 
 with open("C:/Users/zarak/Downloads/TestData_Mariners/Seattle_Mariners_at_Minnesota_Twins_2025-06-25.csv", 'r') as file:
     csvreader = csv.reader(file)

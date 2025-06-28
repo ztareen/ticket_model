@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import warnings
-warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore')#test
 
 class TicketTimingOptimizer:
     def __init__(self):

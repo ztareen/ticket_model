@@ -13,10 +13,11 @@ rows_quantity = []
 rows_price = []
 
 # Load CSV
+#test
 with open("C:/Users/zarak/Downloads/dataMariners/data4.csv", 'r') as file:
     csvreader = csv.reader(file)
     header = next(csvreader)
-        
+        #test
     for row in csvreader:
         rows_date.append(row[0])
         rows_zone.append(row[1])
