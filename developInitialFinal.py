@@ -14,7 +14,8 @@ warnings.filterwarnings('ignore')
 
 class TicketTimingOptimizer:
     def __init__(self):
-        self.model = None
+        self.model_classifier = None
+        self.model_regressor = None
         self.scaler = StandardScaler()
         self.label_encoders = {}
         self.feature_importance = None
@@ -72,17 +73,31 @@ class TicketTimingOptimizer:
             df['segment'] = event_metadata.get('segment', 'Unknown')
             df['genre'] = event_metadata.get('genre', 'Unknown')
             df['ticket_status'] = event_metadata.get('ticket_status', 'Unknown')
+        else:
+            # Add default values if no event metadata found
+            df['venue_id'] = 0
+            df['segment'] = 'Unknown'
+            df['genre'] = 'Unknown'
+            df['ticket_status'] = 'Unknown'
         
-        # Create price trend features
+        # Create price trend features - fix the rolling window calculations
         df = df.sort_values(['zone', 'section', 'row', 'date'])
         
-        # Calculate price changes and trends
+        # Calculate price changes and trends using a safer approach
         df['price_change'] = df.groupby(['zone', 'section', 'row'])['price'].pct_change()
-        df['price_rolling_mean_3d'] = df.groupby(['zone', 'section', 'row'])['price'].rolling(window=3, min_periods=1).mean().reset_index(0, drop=True)
-        df['price_rolling_std_3d'] = df.groupby(['zone', 'section', 'row'])['price'].rolling(window=3, min_periods=1).std().reset_index(0, drop=True)
+        
+        # Fix rolling calculations by using transform instead of apply
+        df['price_rolling_mean_3d'] = df.groupby(['zone', 'section', 'row'])['price'].transform(
+            lambda x: x.rolling(window=3, min_periods=1).mean()
+        )
+        df['price_rolling_std_3d'] = df.groupby(['zone', 'section', 'row'])['price'].transform(
+            lambda x: x.rolling(window=3, min_periods=1).std()
+        )
         
         # Calculate price volatility (standard deviation of price changes)
-        df['price_volatility'] = df.groupby(['zone', 'section', 'row'])['price_change'].rolling(window=5, min_periods=1).std().reset_index(0, drop=True)
+        df['price_volatility'] = df.groupby(['zone', 'section', 'row'])['price_change'].transform(
+            lambda x: x.rolling(window=5, min_periods=1).std()
+        )
         
         # Quantity-based features
         df['quantity_change'] = df.groupby(['zone', 'section', 'row'])['quantity'].pct_change()
@@ -97,7 +112,8 @@ class TicketTimingOptimizer:
         # Create binary target: will price drop significantly in next 7 days?
         df['price_will_drop'] = ((df['future_min_price'] / df['price']) < 0.95).astype(int)
         
-        # Fill NaN values
+        # Fill NaN and inf values
+        df = df.replace([np.inf, -np.inf], np.nan)
         df = df.fillna(method='ffill').fillna(method='bfill').fillna(0)
         
         return df
@@ -201,7 +217,7 @@ class TicketTimingOptimizer:
         print(f"Regression R²: {r2_score(y_reg_test, reg_pred):.3f}")
         print(f"Regression MAE: ${mean_absolute_error(y_reg_test, reg_pred):.2f}")
         
-        # Feature importance
+        # Feature importance - initialize properly
         self.feature_importance = pd.DataFrame({
             'feature': X.columns,
             'importance_class': self.model_classifier.feature_importances_,
@@ -213,8 +229,8 @@ class TicketTimingOptimizer:
     def predict_optimal_timing(self, current_features):
         """Predict optimal timing for ticket purchase"""
         
-        if self.model_classifier is None:
-            raise ValueError("Model not trained yet!")
+        if self.model_classifier is None or self.model_regressor is None:
+            raise ValueError("Models not trained yet!")
         
         # Scale features
         current_features_scaled = self.scaler.transform(current_features.reshape(1, -1))
@@ -257,11 +273,16 @@ class TicketTimingOptimizer:
         axes[0, 1].set_title('Distribution of Optimal Purchase Timing')
         axes[0, 1].grid(True, alpha=0.3)
         
-        # 3. Feature importance
-        top_features = self.feature_importance.head(10)
-        axes[1, 0].barh(top_features['feature'], top_features['importance_class'])
-        axes[1, 0].set_xlabel('Feature Importance')
-        axes[1, 0].set_title('Top 10 Features for Timing Prediction')
+        # 3. Feature importance - check if feature_importance exists
+        if self.feature_importance is not None:
+            top_features = self.feature_importance.head(10)
+            axes[1, 0].barh(top_features['feature'], top_features['importance_class'])
+            axes[1, 0].set_xlabel('Feature Importance')
+            axes[1, 0].set_title('Top 10 Features for Timing Prediction')
+        else:
+            axes[1, 0].text(0.5, 0.5, 'Feature importance not available', 
+                           ha='center', va='center', transform=axes[1, 0].transAxes)
+            axes[1, 0].set_title('Feature Importance')
         
         # 4. Price by zone and timing
         zone_timing = df_with_optimal.groupby(['zone', 'optimal_days_before'])['price'].mean().reset_index()
@@ -303,7 +324,10 @@ def main():
     X_train, X_test, y_class_test, y_reg_test, class_pred, reg_pred, df_with_optimal = optimizer.train_model(df)
     
     print("\n=== FEATURE IMPORTANCE ===")
-    print(optimizer.feature_importance.head(10))
+    if optimizer.feature_importance is not None:
+        print(optimizer.feature_importance.head(10))
+    else:
+        print("Feature importance not available")
     
     print("\n=== TIMING ANALYSIS ===")
     timing_analysis = optimizer.analyze_timing_patterns(df_with_optimal)
@@ -344,7 +368,6 @@ def main():
         optimal_prob, predicted_price = optimizer.predict_optimal_timing(current_features)
         print(f"Probability this is optimal timing: {optimal_prob:.3f}")
         print(f"Predicted price: ${predicted_price:.2f}")
-        
         if optimal_prob > 0.7:
             print("🟢 RECOMMENDATION: Good time to buy!")
         elif optimal_prob > 0.4:
@@ -358,7 +381,10 @@ def main():
     print("\n=== SUMMARY INSIGHTS ===")
     print(f"• Best average timing: {timing_analysis['overall_avg_days']:.1f} days before the event")
     print(f"• Price range: ${df['price'].min():.2f} - ${df['price'].max():.2f}")
-    print(f"• Most important factors: {', '.join(optimizer.feature_importance.head(3)['feature'].tolist())}")
+    if optimizer.feature_importance is not None:
+        print(f"• Most important factors: {', '.join(optimizer.feature_importance.head(3)['feature'].tolist())}")
+    else:
+        print("• Most important factors: Not available")
     
     return optimizer, df, df_with_optimal
 

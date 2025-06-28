@@ -418,3 +418,6 @@ if __name__ == "__main__":
     
     # Run the full scraping process
     # main()
+
+
+    #not able to just go to the other page?
