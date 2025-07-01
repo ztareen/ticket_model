@@ -313,18 +313,27 @@ class SeatDataScraper:
     def extract_event_info(self, row):
         """Extract event information from a table row"""
         try:
-            # Get event name from the first column
-            name_cell = row.find_element(By.XPATH, ".//td[1]")
-            event_name = name_cell.text.strip()
-            
-            # Get date from the second column
-            date_cell = row.find_element(By.XPATH, ".//td[2]")
-            event_date = date_cell.text.strip()
-            
+            # Get event name from the correct column (find the cell with the event name, not the Pin/SH cell)
+            # Find the first td that is not empty and not a button or badge
+            tds = row.find_elements(By.TAG_NAME, "td")
+            event_name = None
+            event_date = None
+            for td in tds:
+                text = td.text.strip()
+                # Heuristic: event name is the first non-empty cell that is not a button/badge and not a date
+                if text and not event_name and not text.lower() in ["pin", "sh"] and not any(char.isdigit() for char in text[:4]):
+                    event_name = text
+                # Heuristic: event date is the first cell that looks like a date (YYYY-MM-DD or similar)
+                if text and not event_date and len(text) >= 10 and text[4] == '-' and text[7] == '-':
+                    event_date = text
+            if not event_name:
+                event_name = "Unknown-Event"
+            if not event_date:
+                event_date = "Unknown-Date"
             return event_name, event_date
         except Exception as e:
             print(f"Error extracting event info: {str(e)}")
-            return "Unknown Event", "Unknown Date"
+            return "Unknown-Event", "Unknown-Date"
 
     def click_event_and_download_csv(self, row, event_name, event_date):
         """Click on an event row to open sidebar and download CSV"""
@@ -548,29 +557,29 @@ class SeatDataScraper:
             print(f"Error closing sidebar: {str(e)}")
 
     def rename_downloaded_file(self, event_name, event_date):
-        """Rename the most recently downloaded CSV file"""
+        """Rename the most recently downloaded CSV file and move it to the target folder"""
         try:
+            # Set the target directory
+            target_dir = r"C:\Users\zarak\Downloads\TestData_Mariners"
+            os.makedirs(target_dir, exist_ok=True)
+            # Get the most recent CSV file in the current directory
             downloads_dir = os.getcwd()
-            # Get the most recent CSV file
             csv_files = glob.glob(os.path.join(downloads_dir, "*.csv"))
             if csv_files:
                 latest_file = max(csv_files, key=os.path.getctime)
-                
                 # Clean up the event name and date for filename
-                clean_event_name = event_name.replace("/", "-").replace("\\", "-").replace(":", "-")
-                clean_date = event_date.replace("/", "-").replace("\\", "-")
-                
-                # Create new filename
-                new_filename = f"{clean_event_name} - {clean_date}.csv"
-                new_filepath = os.path.join(downloads_dir, new_filename)
-                
-                # Rename the file
+                clean_event_name = event_name.replace("/", "-").replace("\\", "-").replace(":", "-").replace(" ", "-")
+                clean_date = event_date.replace("/", "-").replace("\\", "-").replace(" ", "-")
+                # Create new filename (no extension in name, add .csv)
+                new_filename = f"{clean_event_name}-{clean_date}.csv"
+                new_filepath = os.path.join(target_dir, new_filename)
+                # Move and rename the file
                 os.rename(latest_file, new_filepath)
-                print(f"Renamed file to: {new_filename}")
+                print(f"Moved and renamed file to: {new_filepath}")
             else:
-                print("No CSV files found to rename")
+                print("No CSV files found to rename/move")
         except Exception as e:
-            print(f"Error renaming file: {str(e)}")
+            print(f"Error renaming/moving file: {str(e)}")
 
     def download_csv_files(self, num_files=7):
         """Download CSV files for the specified number of events"""
