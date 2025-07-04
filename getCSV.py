@@ -569,7 +569,8 @@ class SeatDataScraper:
                 latest_file = max(csv_files, key=os.path.getctime)
                 # Clean up the event name and date for filename
                 clean_event_name = event_name.replace("/", "-").replace("\\", "-").replace(":", "-").replace(" ", "-")
-                clean_date = event_date.replace("/", "-").replace("\\", "-").replace(" ", "-")
+                # Remove day of week in parenthesis from event_date, e.g. '2025-06-24 (Tue)' -> '2025-06-24'
+                clean_date = event_date.split(' (')[0].replace("/", "-").replace("\\", "-").replace(" ", "-")
                 # Create new filename (no extension in name, add .csv)
                 new_filename = f"{clean_event_name}-{clean_date}.csv"
                 new_filepath = os.path.join(target_dir, new_filename)

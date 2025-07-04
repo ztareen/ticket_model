@@ -12,6 +12,16 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 import warnings
 warnings.filterwarnings('ignore')#test
 
+#need to make it so that it goes thru the csv file with event data
+#figures out dates and event names
+#inputs that in proper format into "seat_data_path"
+#then runs this code and gets output for that event
+
+
+# === EDITABLE FILE PATHS ===
+SEAT_DATA_PATH = "C:\\Users\\zarak\\Downloads\\TestData_Mariners\\Seattle-Mariners-at-New-York-Yankees-2025-07-10.csv"  # <-- Edit this as needed
+EVENT_DATA_PATH = "C:/Users/zarak/OneDrive/Documents/GitHub/ticket_model/event_data_2025.07.03.csv"  # <-- Edit this as needed
+
 class TicketTimingOptimizer:
     def __init__(self):
         self.model_classifier = None
@@ -308,8 +318,8 @@ def main():
     optimizer = TicketTimingOptimizer()
     
     # Define file paths and target event
-    seat_data_path = "C:/Users/zarak/Downloads/TestData_Mariners/Seattle_Mariners_at_Minnesota_Twins_2025-06-25.csv"
-    event_data_path = "C:/Users/zarak/OneDrive/Documents/GitHub/ticket_model/event_data_2025.06.24.csv"
+    seat_data_path = SEAT_DATA_PATH
+    event_data_path = EVENT_DATA_PATH
     target_game = "Seattle_Mariners_at_Minnesota_Twins"
     target_date = "2025-06-25"
     

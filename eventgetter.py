@@ -22,7 +22,7 @@ for event in events:
 
     full_url = f"https://api.seatgeek.com/2/events/section_info/{currentID}?client_id=NTAzNDk2MTZ8MTc0ODAyMzY5MS41NzUwNDY"
     seatingURLs.append(full_url)
-
+    
     #print(f"The URL for this would be {full_url}")
     response2 = requests.get(full_url)
     data2 = response2.json()
