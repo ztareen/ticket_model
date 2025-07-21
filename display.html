@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket Timing Optimizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 20"><defs><radialGradient id="a"><stop offset="0%" stop-color="%23ffffff" stop-opacity="0.1"/><stop offset="100%" stop-color="%23ffffff" stop-opacity="0"/></radialGradient></defs><rect width="11" height="11" fill="url(%23a)" rx="2" ry="2" transform="translate(0 0)"/></svg>') repeat;
+            opacity: 0.1;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .upload-section {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 2px dashed #cbd5e1;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            border-color: #4f46e5;
+            background: #f1f5f9;
+            transform: translateY(-2px);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        input[type="file"], input[type="text"], input[type="date"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .analyze-btn {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .analyze-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .analyze-btn:hover::before {
+            left: 100%;
+        }
+
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(79, 70, 229, 0.3);
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .results-section {
+            display: none;
+            margin-top: 40px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            border: 1px solid #f1f5f9;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .result-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, #4f46e5, #7c3aed);
+        }
+
+        .result-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+        }
+
+        .result-card h3 {
+            color: #374151;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .metric:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .metric-value {
+            font-weight: 700;
+            color: #374151;
+            font-size: 1.1rem;
+        }
+
+        .recommendation {
+            padding: 20px;
+            border-radius: 16px;
+            margin: 20px 0;
+            font-weight: 600;
+            text-align: center;
+            font-size: 1.1rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .recommendation::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .recommendation:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .rec-buy {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .rec-wait {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+
+        .rec-hold {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin: 30px 0;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            position: relative;
+            height: 400px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f1f5f9;
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .insights-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .insights-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #f1f5f9;
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .insights-list li::before {
+            content: '💡';
+            position: absolute;
+            left: 0;
+            top: 12px;
+        }
+
+        .insights-list li:last-child {
+            border-bottom: none;
+        }
+
+        .quick-predict-section {
+            background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+            border-radius: 20px;
+            padding: 30px;
+            margin-top: 40px;
+        }
+
+        .predict-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .predict-btn {
+            background: linear-gradient(135deg, #059669, #047857);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .predict-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(5, 150, 105, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .predict-form {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎫 Ticket Timing Optimizer</h1>
+            <p>AI-powered analysis to find the perfect time to buy event tickets</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="upload-section">
+                <h2 style="margin-bottom: 20px; color: #374151;">Upload Your Data</h2>
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="seatData">Seat Data CSV</label>
+                            <input type="file" id="seatData" name="seatData" accept=".csv" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="eventData">Event Data CSV</label>
+                            <input type="file" id="eventData" name="eventData" accept=".csv" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="targetGame">Target Game/Event</label>
+                            <input type="text" id="targetGame" name="targetGame" placeholder="e.g., Seattle_Mariners_at_Minnesota_Twins" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="targetDate">Event Date</label>
+                            <input type="date" id="targetDate" name="targetDate" required>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="analyze-btn" id="analyzeBtn">
+                        🔍 Analyze Optimal Timing
+                    </button>
+                </form>
+            </div>
+
+            <div id="loadingSection" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Analyzing ticket data and training ML models...</p>
+                <p style="font-size: 0.9rem; margin-top: 10px; opacity: 0.7;">This may take a few minutes</p>
+            </div>
+
+            <div id="resultsSection" class="results-section">
+                <h2 style="margin-bottom: 30px; color: #374151;">Analysis Results</h2>
+                
+                <div class="results-grid">
+                    <div class="result-card">
+                        <h3>Model Performance</h3>
+                        <div class="metric">
+                            <span class="metric-label">Classification Accuracy</span>
+                            <span class="metric-value" id="accuracy">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">R² Score</span>
+                            <span class="metric-value" id="r2Score">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Model Quality</span>
+                            <span class="metric-value" id="modelQuality">--</span>
+                        </div>
+                    </div>
+                    
+                    <div class="result-card">
+                        <h3>Optimal Timing</h3>
+                        <div class="metric">
+                            <span class="metric-label">Average Optimal Days</span>
+                            <span class="metric-value" id="averageDays">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Best Zone</span>
+                            <span class="metric-value" id="bestZone">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Price Range</span>
+                            <span class="metric-value" id="priceRange">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="recommendationCard" class="recommendation">
+                    <div style="position: relative; z-index: 1;">
+                        <strong id="recommendationText">Analyzing...</strong>
+                    </div>
+                </div>
+
+                <div class="result-card">
+                    <h3>Key Insights</h3>
+                    <ul id="insightsList" class="insights-list">
+                        <li>Loading insights...</li>
+                    </ul>
+                </div>
+
+                <div class="chart-container">
+                    <h3 style="margin-bottom: 20px; color: #374151;">Price Trend Analysis</h3>
+                    <canvas id="priceChart"></canvas>
+                </div>
+            </div>
+
+            <div class="quick-predict-section">
+                <h2 style="margin-bottom: 20px; color: #374151;">Quick Prediction</h2>
+                <p style="margin-bottom: 20px; color: #6b7280;">Get instant recommendations for current ticket conditions</p>
+                
+                <div class="predict-form">
+                    <div class="form-group">
+                        <label for="predictDays">Days Until Event</label>
+                        <input type="number" id="predictDays" placeholder="30" min="1" max="365">
+                    </div>
+                    <div class="form-group">
+                        <label for="predictPrice">Current Price ($)</label>
+                        <input type="number" id="predictPrice" placeholder="150" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="predictQuantity">Available Quantity</label>
+                        <input type="number" id="predictQuantity" placeholder="4" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="predictZone">Zone</label>
+                        <input type="text" id="predictZone" placeholder="A" maxlength="10">
+                    </div>
+                </div>
+                
+                <button class="predict-btn" onclick="quickPredict()">Get Quick Prediction</button>
+                
+                <div id="quickResults" style="margin-top: 20px; display: none;">
+                    <div class="result-card">
+                        <h3>Prediction Results</h3>
+                        <div class="metric">
+                            <span class="metric-label">Optimal Probability</span>
+                            <span class="metric-value" id="quickOptimalProb">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Predicted Price</span>
+                            <span class="metric-value" id="quickPredictedPrice">--</span>
+                        </div>
+                        <div id="quickRecommendation" class="recommendation" style="margin-top: 15px;">
+                            <span id="quickRecommendationText">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let priceChart = null;
+
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            const seatData = document.getElementById('seatData').files[0];
+            const eventData = document.getElementById('eventData').files[0];
+            const targetGame = document.getElementById('targetGame').value;
+            const targetDate = document.getElementById('targetDate').value;
+            
+            if (!seatData || !eventData) {
+                alert('Please select both CSV files');
+                return;
+            }
+            
+            formData.append('seatData', seatData);
+            formData.append('eventData', eventData);
+            formData.append('targetGame', targetGame);
+            formData.append('targetDate', targetDate);
+            
+            // Show loading
+            document.getElementById('loadingSection').style.display = 'block';
+            document.getElementById('analyzeBtn').disabled = true;
+            document.getElementById('analyzeBtn').textContent = 'Analyzing...';
+            
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const results = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(results.error || 'Analysis failed');
+                }
+                
+                displayResults(results);
+                
+            } catch (error) {
+                alert('Analysis failed: ' + error.message);
+                console.error('Error:', error);
+            } finally {
+                document.getElementById('loadingSection').style.display = 'none';
+                document.getElementById('analyzeBtn').disabled = false;
+                document.getElementById('analyzeBtn').textContent = '🔍 Analyze Optimal Timing';
+            }
+        });
+
+        function displayResults(results) {
+            document.getElementById('resultsSection').style.display = 'block';
+            
+            // Update performance metrics
+            document.getElementById('accuracy').textContent = 
+                (results.modelPerformance.accuracy * 100).toFixed(1) + '%';
+            document.getElementById('r2Score').textContent = 
+                results.modelPerformance.r2Score?.toFixed(3) || '--';
+            
+            // Model quality assessment
+            const accuracy = results.modelPerformance.accuracy || 0;
+            let quality = 'Poor';
+            if (accuracy > 0.8) quality = 'Excellent';
+            else if (accuracy > 0.7) quality = 'Good';
+            else if (accuracy > 0.6) quality = 'Fair';
+            document.getElementById('modelQuality').textContent = quality;
+            
+            // Update timing analysis
+            document.getElementById('averageDays').textContent = 
+                results.timingAnalysis.averageOptimalDays?.toFixed(1) + ' days' || '--';
+            
+            // Update recommendation
+            const recCard = document.getElementById('recommendationCard');
+            const recText = document.getElementById('recommendationText');
+            
+            if (results.recommendation) {
+                recText.textContent = results.recommendation;
+                if (results.recommendation.includes('Good time')) {
+                    recCard.className = 'recommendation rec-buy';
+                } else if (results.recommendation.includes('wait')) {
+                    recCard.className = 'recommendation rec-wait';
+                } else {
+                    recCard.className = 'recommendation rec-hold';
+                }
+            }
+            
+            // Update insights
+            const insightsList = document.getElementById('insightsList');
+            insightsList.innerHTML = '';
+            if (results.insights && results.insights.length > 0) {
+                results.insights.forEach(insight => {
+                    const li = document.createElement('li');
+                    li.textContent = insight;
+                    insightsList.appendChild(li);
+                });
+            } else {
+                insightsList.innerHTML = '<li>No specific insights available</li>';
+            }
+            
+            // Create sample chart (you'd replace this with real data from your analysis)
+            createPriceChart();
+        }
+
+        function createPriceChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            
+            if (priceChart) {
+                priceChart.destroy();
+            }
+            
+            // Sample data - replace with real analysis data
+            const sampleData = generateSamplePriceData();
