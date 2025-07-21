@@ -85,3 +85,5 @@ for j in range(i+1, len(axs)):
 fig.suptitle("Ticket Prices Over Time by Zone", fontsize=16)
 plt.tight_layout(rect=(0, 0, 1, 0.97))
 plt.show()
+
+#test
