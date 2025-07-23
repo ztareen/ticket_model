@@ -1,22 +1,33 @@
-# backend/app.py
-from flask import Flask, jsonify
-import subprocess
-import json
+from flask import Flask, jsonify, render_template
+from ticket_model import run_ticket_model
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
-@app.route("/mariners-events")
-def mariners_events():
-    # Run your scripts in order
-    subprocess.run(["python", "ticketmaster_eventgetter.py"])
-    subprocess.run(["python", "getCSV.py"])
-    subprocess.run(["python", "developFinalInitial.py"])
+@app.route("/")  # <-- This is the route you were missing
+def home():
+    return render_template("index.html")
 
-    # Load final result (assuming you write a JSON output)
-    with open("final_events.json", "r") as f:
-        events = json.load(f)
+@app.route("/api/run-model", methods=["GET"])
+def run_model():
+    try:
+        result = run_ticket_model()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-    return jsonify({"events": events})
+
+# New endpoint for POST /run
+from flask import request
+
+@app.route('/run', methods=['POST'])
+def run_script():
+    try:
+        result = run_ticket_model()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)

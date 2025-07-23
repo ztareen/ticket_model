@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ticket Timing Predictor</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='frontend.css') }}">
+</head>
+<body>
+    <h1>🎟️ Ticket Timing Predictor</h1>
+    <button onclick="getPrediction()">Run Prediction</button>
+    <pre id="output"></pre>
+
+    <script>
+        async function getPrediction() {
+            const outputDiv = document.getElementById("output");
+            outputDiv.innerText = "Running model...";
+            try {
+                const response = await fetch("/run", { method: "POST" });
+                const data = await response.json();
+                if (data.error) {
+                    outputDiv.innerText = "Error: " + data.error;
+                    return;
+                }
+
+                outputDiv.innerHTML = `
+                  <h2>Event: ${data.event}</h2>
+                  <b>Date:</b> ${data.event_date}<br>
+                  <b>Details:</b> ${Object.entries(data.event_details || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}<br><br>
+
+                  <h3>🎯 Prediction</h3>
+                  Probability optimal: <b>${data.optimal_probability}</b><br>
+                  Predicted price: <b>$${data.predicted_price}</b><br>
+                  Recommendation: <b style="color:${data.recommendation_code}">${data.recommendation}</b><br><br>
+
+                  <h3>⏱️ Timing Analysis</h3>
+                  Avg optimal days: ${data.average_best_days}<br>
+                  ${Object.entries(data.timing_by_zone).map(([zone, days]) => `
+                    ${zone}: ${days} days<br>
+                  `).join('')}<br>
+
+                  <h3>🧠 Feature Importance</h3>
+                  ${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.map(f => `${f}<br>`).join('') : 'N/A'}<br>
+
+                  <h3>🔎 Summary Insights</h3>
+                  Price range: $${data.price_range[0]} - $${data.price_range[1]}<br>
+                  Key factors: ${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.join(', ') : 'N/A'}
+                `;
+            } catch (err) {
+                outputDiv.innerText = "Request failed: " + err;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -10,7 +10,9 @@ from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import warnings
+from datetime import date
 warnings.filterwarnings('ignore')#test
+today = date.today()
 
 #need to make it so that it goes thru the csv file with event data
 #figures out dates and event names
@@ -18,9 +20,10 @@ warnings.filterwarnings('ignore')#test
 #then runs this code and gets output for that event
 
 
+
 # === EDITABLE FILE PATHS ===
 SEAT_DATA_PATH = "C:\\Users\\zarak\\Downloads\\TestData_Mariners\\Seattle-Mariners-at-New-York-Yankees-2025-07-10.csv"  # <-- Edit this as needed
-EVENT_DATA_PATH = "C:/Users/zarak/OneDrive/Documents/GitHub/ticket_model/event_data_2025.07.03.csv"  # <-- Edit this as needed
+EVENT_DATA_PATH = f"C:/Users/zarak/OneDrive/Documents/GitHub/ticket_model/event_data_{today.year}.{today.month:02d}.{today.day:02d}.csv"
 
 class TicketTimingOptimizer:
     def __init__(self):
@@ -400,3 +403,142 @@ def main():
 
 if __name__ == "__main__":
     optimizer, df, df_with_optimal = main()
+
+def run_ticket_model():
+    optimizer = TicketTimingOptimizer()
+    seat_data_path = SEAT_DATA_PATH
+    event_data_path = EVENT_DATA_PATH
+    target_game = "Seattle_Mariners_at_Minnesota_Twins"
+    target_date = "2025-06-25"
+
+    df = optimizer.load_and_prepare_data(seat_data_path, event_data_path, target_game, target_date)
+    X_train, X_test, y_class_test, y_reg_test, class_pred, reg_pred, df_with_optimal = optimizer.train_model(df)
+    timing_analysis = optimizer.analyze_timing_patterns(df_with_optimal)
+
+    current_features = np.array([
+        30, 150, 4, 2, 0, 25, 6, 0.05, 145, 5, 0.1, 0.02, 50
+    ])
+    n_features = len(optimizer.create_features(df).columns)
+    if len(current_features) < n_features:
+        current_features = np.concatenate([current_features, np.zeros(n_features - len(current_features))])
+
+    optimal_prob, predicted_price = optimizer.predict_optimal_timing(current_features)
+
+    # Convert NumPy types to native Python types
+    optimal_prob = float(optimal_prob)
+    predicted_price = float(predicted_price)
+    average_best_days = float(timing_analysis['overall_avg_days'])
+
+    # Collect feature importance (top 3)
+    if optimizer.feature_importance is not None:
+        top_features = optimizer.feature_importance.head(3)['feature'].tolist()
+    else:
+        top_features = []
+
+    # Collect optimal timing by zone and by section
+    timing_by_zone = {str(k): round(float(v), 2) for k, v in timing_analysis['by_zone'].items()}
+    timing_by_section = {}
+    if 'section' in df.columns and 'optimal_days_before' in df_with_optimal.columns:
+        section_group = df_with_optimal.groupby('section')['optimal_days_before'].mean()
+        timing_by_section = {str(k): round(float(v), 2) for k, v in section_group.items()}
+
+    # Group sections for frontend display
+    section_group_map = {
+        'infield': [],
+        'outfield': [],
+        'bleachers': [],
+        'suite': [],
+        'other': []
+    }
+    for section, days in timing_by_section.items():
+        section_lower = section.lower()
+        if 'infield' in section_lower:
+            section_group_map['infield'].append(days)
+        elif 'outfield' in section_lower:
+            section_group_map['outfield'].append(days)
+        elif 'bleacher' in section_lower:
+            section_group_map['bleachers'].append(days)
+        elif 'suite' in section_lower:
+            section_group_map['suite'].append(days)
+        else:
+            section_group_map['other'].append(days)
+    # Calculate average for each group (if any sections in group)
+    timing_by_section_group = {}
+    for group, values in section_group_map.items():
+        if values:
+            timing_by_section_group[group] = round(float(np.mean(values)), 2)
+
+    # Collect price range (overall and by section)
+    price_min = float(df['price'].min())
+    price_max = float(df['price'].max())
+    price_range = [round(price_min, 2), round(price_max, 2)]
+    price_range_by_section = {}
+    if 'section' in df.columns:
+        for section, group in df.groupby('section'):
+            min_p = round(float(group['price'].min()), 2)
+            max_p = round(float(group['price'].max()), 2)
+            price_range_by_section[str(section)] = [min_p, max_p]
+
+    # Recommended buy price range (e.g., 10th-30th percentile of prices)
+    buy_price_low = round(float(df['price'].quantile(0.10)), 2)
+    buy_price_high = round(float(df['price'].quantile(0.30)), 2)
+    buy_price_range = [buy_price_low, buy_price_high]
+
+    # Expanded predicted price range (e.g., 10th-90th percentile)
+    pred_price_low = round(float(df['price'].quantile(0.10)), 2)
+    pred_price_high = round(float(df['price'].quantile(0.90)), 2)
+    predicted_price_range = [pred_price_low, pred_price_high]
+
+    # Recommendation logic and wait days
+    wait_days = None
+    if optimal_prob > 0.7:
+        recommendation = 'Good time to buy!'
+        rec_code = 'green'
+    elif optimal_prob > 0.4:
+        recommendation = 'Consider waiting a bit longer'
+        rec_code = 'yellow'
+        # Suggest wait days as the difference between now and average best days
+        wait_days = max(0, round(average_best_days - current_features[0], 2))
+    else:
+        # Find the most common optimal_days_before (mode) or average
+        if 'optimal_days_before' in df_with_optimal.columns:
+            # Only consider future days
+            future_days = df_with_optimal[df_with_optimal['optimal_days_before'] > 0]['optimal_days_before']
+            if not future_days.empty:
+                wait_days = round(float(future_days.mean() - current_features[0]), 2)
+                wait_days = max(0, wait_days)
+        recommendation = 'We recommend waiting {} more days'.format(wait_days if wait_days is not None else '?')
+        rec_code = 'red'
+
+    # Event details from event metadata (grab from df if available)
+    event_details = {}
+    if not df.empty:
+        for col in ['venue_id', 'segment', 'genre', 'ticket_status']:
+            if col in df.columns:
+                event_details[col] = str(df.iloc[0][col])
+
+    # Probability context
+    prob_context = (
+        "This is the estimated probability that buying now is the optimal time. "
+        "A value close to 1 means it's likely the best time to buy, while a value near 0 means it's likely better to wait."
+    )
+
+    return {
+        'event': 'Seattle Mariners at Minnesota Twins',
+        'event_date': target_date,
+        'event_details': event_details,
+        'optimal_probability': round(optimal_prob, 2),
+        'probability_context': prob_context,
+        'predicted_price': round(predicted_price, 2),
+        'predicted_price_range': predicted_price_range,
+        'average_best_days': round(average_best_days, 2),
+        'feature_importance': top_features,
+        'timing_by_zone': timing_by_zone,
+        'timing_by_section': timing_by_section,
+        'price_range': price_range,
+        'price_range_by_section': price_range_by_section,
+        'buy_price_range': buy_price_range,
+        'recommendation': recommendation,
+        'recommendation_code': rec_code,
+        'wait_days': wait_days
+    }

@@ -313,19 +313,23 @@ class SeatDataScraper:
     def extract_event_info(self, row):
         """Extract event information from a table row"""
         try:
-            # Get event name from the correct column (find the cell with the event name, not the Pin/SH cell)
-            # Find the first td that is not empty and not a button or badge
+            # Get event name from the correct column (skip first 2 td elements which are buttons)
             tds = row.find_elements(By.TAG_NAME, "td")
             event_name = None
             event_date = None
-            for td in tds:
+            
+            # Skip first 2 td elements (pin button and other buttons)
+            content_tds = tds[2:] if len(tds) > 2 else tds
+            
+            for td in content_tds:
                 text = td.text.strip()
-                # Heuristic: event name is the first non-empty cell that is not a button/badge and not a date
-                if text and not event_name and not text.lower() in ["pin", "sh"] and not any(char.isdigit() for char in text[:4]):
+                # Event name is the first non-empty cell that doesn't look like a date
+                if text and not event_name and not (len(text) >= 10 and text[4] == '-' and text[7] == '-'):
                     event_name = text
-                # Heuristic: event date is the first cell that looks like a date (YYYY-MM-DD or similar)
+                # Event date is the first cell that looks like a date (YYYY-MM-DD or similar)
                 if text and not event_date and len(text) >= 10 and text[4] == '-' and text[7] == '-':
                     event_date = text
+                    
             if not event_name:
                 event_name = "Unknown-Event"
             if not event_date:
@@ -335,188 +339,177 @@ class SeatDataScraper:
             print(f"Error extracting event info: {str(e)}")
             return "Unknown-Event", "Unknown-Date"
 
-    def click_event_and_download_csv(self, row, event_name, event_date):
-        """Click on an event row to open sidebar and download CSV"""
+    def click_event_row_robust(self, row):
+        """Robustly click on an event row to open sidebar"""
         try:
-            print(f"Processing event: {event_name} - {event_date}")
-            
             # Scroll the row into view
             self.driver.execute_script("arguments[0].scrollIntoView(true);", row)
             time.sleep(1)
             
-            # Check if this row has the expandable class
-            row_classes = row.get_attribute('class') or ''
-            print(f"Row classes: {row_classes}")
-            
-            # Look for the expand button or clickable element within the row
-            # Try to find the element that actually triggers the sidebar
-            expand_element = None
-            
-            # Try different selectors for the expand trigger
-            expand_selectors = [
-                (By.CSS_SELECTOR, "td.dt-control"),  # DataTables control column
-                (By.CSS_SELECTOR, ".dtr-control"),   # Responsive control
-                (By.XPATH, ".//td[contains(@class, 'control')]"),
-                (By.XPATH, ".//button[contains(@class, 'dtr-control')]"),
-                (By.XPATH, ".//span[contains(@class, 'dtr-control')]"),
+            # Try clicking on different parts of the row (skip first 2 td elements)
+            click_methods = [
+                # Method 1: Click on the third td (skip first 2 button columns)
+                lambda: row.find_element(By.XPATH, ".//td[3]").click(),
+                # Method 2: Click on the fourth td 
+                lambda: row.find_element(By.XPATH, ".//td[4]").click(),
+                # Method 3: Click on the fifth td
+                lambda: row.find_element(By.XPATH, ".//td[5]").click(),
+                # Method 4: Click on the row itself
+                lambda: row.click(),
+                # Method 5: JavaScript click on third td
+                lambda: self.driver.execute_script("arguments[0].click();", row.find_element(By.XPATH, ".//td[3]")),
+                # Method 6: JavaScript click on fourth td
+                lambda: self.driver.execute_script("arguments[0].click();", row.find_element(By.XPATH, ".//td[4]")),
+                # Method 7: JavaScript click on the row
+                lambda: self.driver.execute_script("arguments[0].click();", row),
             ]
             
-            for selector_type, selector_value in expand_selectors:
+            for i, click_method in enumerate(click_methods, 1):
                 try:
-                    expand_element = row.find_element(selector_type, selector_value)
-                    print(f"Found expand element using {selector_type}: {selector_value}")
-                    break
-                except NoSuchElementException:
-                    continue
-            
-            # If no specific expand element found, but row has dt-hasChild class, click the row
-            if not expand_element and 'dt-hasChild' in row_classes:
-                expand_element = row
-                print("Using the row itself as expand element")
-            
-            # If still no expand element and row is expandable, try first td
-            if not expand_element:
-                try:
-                    # Sometimes the first cell is the expand trigger
-                    first_td = row.find_element(By.XPATH, ".//td[1]")
-                    expand_element = first_td
-                    print("Using first td as expand element")
-                except NoSuchElementException:
-                    pass
-            
-            if expand_element:
-                try:
-                    # Try regular click first
-                    expand_element.click()
-                    print("Clicked expand element with regular click")
-                except Exception as e:
-                    print(f"Regular click failed: {e}, trying JavaScript click")
-                    self.driver.execute_script("arguments[0].click();", expand_element)
-                    print("Clicked expand element using JavaScript")
-                
-                # Wait for the sidebar/details to appear
-                time.sleep(3)
-                
-                # Check if sidebar or details panel appeared
-                sidebar_appeared = False
-                sidebar_selectors = [
-                    (By.CSS_SELECTOR, ".sidebar"),
-                    (By.CSS_SELECTOR, ".dtr-details"),
-                    (By.CSS_SELECTOR, "[class*='detail']"),
-                    (By.CSS_SELECTOR, "[class*='sidebar']"),
-                    (By.ID, "download-csv"),  # Direct check for download button
-                ]
-                
-                for selector_type, selector_value in sidebar_selectors:
+                    print(f"Trying click method {i}...")
+                    click_method()
+                    time.sleep(2)  # Wait a bit for sidebar to appear
+                    
+                    # Check if sidebar appeared by looking for download button
                     try:
-                        sidebar = self.driver.find_element(selector_type, selector_value)
-                        if sidebar.is_displayed():
-                            sidebar_appeared = True
-                            print(f"Sidebar/details panel found using {selector_type}: {selector_value}")
-                            break
+                        download_button = self.driver.find_element(By.ID, "download-csv")
+                        if download_button.is_displayed():
+                            print(f"✅ Click method {i} successful - sidebar opened!")
+                            return True
                     except NoSuchElementException:
-                        continue
-                
-                if not sidebar_appeared:
-                    print("Sidebar may not have appeared, checking for any new elements...")
-                    # Take screenshot for debugging
-                    self.driver.save_screenshot(f"after_click_{event_name.replace(' ', '_')}.png")
-            
-            else:
-                print("No expand element found, trying to click the row directly")
-                try:
-                    row.click()
-                    print("Clicked on row directly")
-                    time.sleep(3)
+                        pass
+                    
+                    # Alternative check - look for any sidebar-like element
+                    sidebar_selectors = [
+                        (By.CSS_SELECTOR, ".sidebar"),
+                        (By.CSS_SELECTOR, ".dtr-details"),
+                        (By.CSS_SELECTOR, "[class*='detail']"),
+                        (By.CSS_SELECTOR, "[class*='sidebar']"),
+                    ]
+                    
+                    for selector_type, selector_value in sidebar_selectors:
+                        try:
+                            sidebar = self.driver.find_element(selector_type, selector_value)
+                            if sidebar.is_displayed():
+                                print(f"✅ Click method {i} successful - sidebar found!")
+                                return True
+                        except NoSuchElementException:
+                            continue
+                    
+                    print(f"Click method {i} didn't open sidebar, trying next method...")
+                    
                 except Exception as e:
-                    print(f"Direct row click failed: {e}")
-                    self.driver.execute_script("arguments[0].click();", row)
-                    print("Clicked row using JavaScript")
-                    time.sleep(3)
-            
-            # Look for the download CSV button
-            download_button_selectors = [
-                (By.ID, "download-csv"),
-                (By.XPATH, "//button[contains(text(), 'Download CSV')]"),
-                (By.XPATH, "//button[@id='download-csv']"),
-                (By.CSS_SELECTOR, "button#download-csv"),
-                (By.XPATH, "//button[contains(@class, 'btn') and contains(text(), 'CSV')]"),
-                (By.XPATH, "//a[contains(text(), 'Download CSV')]"),  # In case it's a link
-                (By.XPATH, "//a[contains(@href, 'csv')]"),
-            ]
-            
-            download_button = None
-            for selector_type, selector_value in download_button_selectors:
-                try:
-                    download_button = self.wait.until(EC.element_to_be_clickable((selector_type, selector_value)))
-                    print(f"Found download CSV button using {selector_type}: {selector_value}")
-                    break
-                except TimeoutException:
+                    print(f"Click method {i} failed: {str(e)}")
                     continue
             
-            if not download_button:
-                print("Could not find download CSV button, searching all buttons...")
-                # Try to find any button with "CSV" in the text
-                all_buttons = self.driver.find_elements(By.TAG_NAME, "button")
-                all_links = self.driver.find_elements(By.TAG_NAME, "a")
-                
-                for element in all_buttons + all_links:
-                    try:
-                        element_text = element.text.lower()
-                        if "csv" in element_text or "download" in element_text:
-                            download_button = element
-                            print(f"Found potential download element with text: {element.text}")
-                            break
-                    except:
-                        continue
-            
-            if download_button:
-                try:
-                    # Scroll download button into view
-                    self.driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
-                    time.sleep(1)
-                    
-                    download_button.click()
-                    print("Clicked download CSV button")
-                    time.sleep(3)  # Wait for download to start
-                    
-                    # Try to rename the downloaded file
-                    self.rename_downloaded_file(event_name, event_date)
-                    
-                except Exception as e:
-                    print(f"Error clicking download button: {str(e)}")
-                    try:
-                        self.driver.execute_script("arguments[0].click();", download_button)
-                        print("Used JavaScript click for download button")
-                        time.sleep(3)
-                        self.rename_downloaded_file(event_name, event_date)
-                    except Exception as e2:
-                        print(f"JavaScript click also failed: {str(e2)}")
-            else:
-                print("Could not find download CSV button")
-                # Take screenshot for debugging
-                self.driver.save_screenshot(f"no_download_button_{event_name.replace(' ', '_')}.png")
-                print("Available elements on page:")
-                try:
-                    all_clickable = self.driver.find_elements(By.XPATH, "//button | //a | //input[@type='submit']")
-                    for elem in all_clickable[:10]:  # Show first 10
-                        try:
-                            print(f"  - {elem.tag_name}: '{elem.text}' (class: {elem.get_attribute('class')})")
-                        except:
-                            pass
-                except:
-                    pass
-            
-            # Close the sidebar/details panel
-            self.close_sidebar_or_details()
+            print("❌ All click methods failed to open sidebar")
+            return False
             
         except Exception as e:
-            print(f"Error processing event {event_name}: {str(e)}")
-            # Take screenshot for debugging
-            try:
-                self.driver.save_screenshot(f"error_{event_name.replace(' ', '_')}.png")
-            except:
-                pass
+            print(f"Error in robust click: {str(e)}")
+            return False
+
+    def download_csv_files(self, num_files=14):
+        """Download CSV files for the specified number of events"""
+        try:
+            self.check_driver()
+            print(f"Starting CSV download process for up to {num_files} events")
+            
+            # Get all event rows from the table
+            event_rows = self.get_event_rows()
+            
+            if not event_rows:
+                print("No event rows found in table")
+                return
+            
+            print(f"Found {len(event_rows)} total event rows")
+            rows_to_process = event_rows[:num_files]
+            
+            for i, row in enumerate(rows_to_process, 1):
+                try:
+                    print(f"\n--- Processing event {i}/{len(rows_to_process)} ---")
+                    
+                    # Extract event info first
+                    event_name, event_date = self.extract_event_info(row)
+                    print(f"Event: {event_name} - {event_date}")
+                    
+                    # Use robust clicking method
+                    if not self.click_event_row_robust(row):
+                        print(f"❌ Could not open sidebar for event {i}, skipping...")
+                        continue
+                    
+                    # Now look for download button
+                    download_button = None
+                    download_button_selectors = [
+                        (By.ID, "download-csv"),
+                        (By.XPATH, "//button[contains(text(), 'Download CSV')]"),
+                        (By.XPATH, "//button[@id='download-csv']"),
+                        (By.CSS_SELECTOR, "button#download-csv"),
+                        (By.XPATH, "//button[contains(@class, 'btn') and contains(text(), 'CSV')]"),
+                        (By.XPATH, "//a[contains(text(), 'Download CSV')]"),
+                        (By.XPATH, "//a[contains(@href, 'csv')]"),
+                    ]
+                    
+                    for selector_type, selector_value in download_button_selectors:
+                        try:
+                            download_button = WebDriverWait(self.driver, 10).until(
+                                EC.element_to_be_clickable((selector_type, selector_value))
+                            )
+                            print(f"Found download CSV button using {selector_type}: {selector_value}")
+                            break
+                        except TimeoutException:
+                            continue
+                    
+                    if download_button:
+                        try:
+                            # Scroll download button into view
+                            self.driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
+                            time.sleep(1)
+                            
+                            # Try clicking the download button
+                            try:
+                                download_button.click()
+                                print("✅ Clicked download CSV button")
+                            except Exception as e:
+                                print(f"Regular click failed: {e}, trying JavaScript click")
+                                self.driver.execute_script("arguments[0].click();", download_button)
+                                print("✅ Clicked download CSV button using JavaScript")
+                            
+                            time.sleep(3)  # Wait for download to start
+                            
+                            # Rename the downloaded file
+                            self.rename_downloaded_file(event_name, event_date)
+                            
+                        except Exception as e:
+                            print(f"❌ Error clicking download button: {str(e)}")
+                    else:
+                        print("❌ Could not find download CSV button")
+                        # Take screenshot for debugging
+                        self.driver.save_screenshot(f"no_download_button_{event_name.replace(' ', '_')}.png")
+                        print("Available elements on page:")
+                        try:
+                            all_clickable = self.driver.find_elements(By.XPATH, "//button | //a | //input[@type='submit']")
+                            for elem in all_clickable[:10]:  # Show first 10
+                                try:
+                                    print(f"  - {elem.tag_name}: '{elem.text}' (class: {elem.get_attribute('class')})")
+                                except:
+                                    pass
+                        except:
+                            pass
+                    
+                    # Close the sidebar/details panel
+                    self.close_sidebar_or_details()
+                    time.sleep(1)
+                    
+                except Exception as e:
+                    print(f"❌ Error processing row {i}: {str(e)}")
+                    continue
+            
+            print(f"\n✅ Completed processing {len(rows_to_process)} events")
+            
+        except Exception as e:
+            print(f"❌ Error during CSV download process: {str(e)}")
+            raise
 
     def close_sidebar_or_details(self):
         """Close sidebar or details panel"""
@@ -582,68 +575,6 @@ class SeatDataScraper:
         except Exception as e:
             print(f"Error renaming/moving file: {str(e)}")
 
-    def download_csv_files(self, num_files=7):
-        """Download CSV files for the specified number of events"""
-        try:
-            self.check_driver()
-            print(f"Starting CSV download process for up to {num_files} events")
-            # Get all event rows with the correct class (dt-hasChild dtr-expanded)
-            event_rows = self.driver.find_elements(By.CSS_SELECTOR, "tr.dt-hasChild.dtr-expanded")
-            if not event_rows:
-                print("No event rows found with class 'dt-hasChild dtr-expanded'")
-                return
-            rows_to_process = event_rows[:num_files]
-            for i, row in enumerate(rows_to_process, 1):
-                try:
-                    print(f"\n--- Processing event {i}/{len(rows_to_process)} ---")
-                    event_name, event_date = self.extract_event_info(row)
-                    self.driver.execute_script("arguments[0].scrollIntoView(true);", row)
-                    time.sleep(1)
-                    try:
-                        row.click()
-                        print("Clicked event row to ensure sidebar is open")
-                    except Exception as e:
-                        print(f"Regular click failed: {e}, trying JavaScript click")
-                        self.driver.execute_script("arguments[0].click();", row)
-                        print("Clicked event row using JavaScript")
-                    time.sleep(2)
-                    download_button = None
-                    download_button_selectors = [
-                        (By.ID, "download-csv"),
-                        (By.XPATH, "//button[contains(text(), 'Download CSV') or contains(@class, 'csv') or contains(@id, 'download-csv') or contains(@class, 'btn')]")
-                    ]
-                    for selector_type, selector_value in download_button_selectors:
-                        try:
-                            download_button = self.wait.until(EC.element_to_be_clickable((selector_type, selector_value)))
-                            print(f"Found download CSV button using {selector_type}: {selector_value}")
-                            break
-                        except TimeoutException:
-                            continue
-                    if download_button:
-                        self.driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
-                        time.sleep(1)
-                        try:
-                            download_button.click()
-                            print("Clicked download CSV button")
-                        except Exception as e:
-                            print(f"Regular click failed: {e}, trying JavaScript click")
-                            self.driver.execute_script("arguments[0].click();", download_button)
-                            print("Clicked download CSV button using JavaScript")
-                        time.sleep(3)
-                        self.rename_downloaded_file(event_name, event_date)
-                    else:
-                        print("Could not find download CSV button for this event")
-                        self.driver.save_screenshot(f"no_download_button_{event_name.replace(' ', '_')}.png")
-                    self.close_sidebar_or_details()
-                    time.sleep(1)
-                except Exception as e:
-                    print(f"Error processing row {i}: {str(e)}")
-                    continue
-            print(f"\nCompleted processing {len(rows_to_process)} events")
-        except Exception as e:
-            print(f"Error during CSV download process: {str(e)}")
-            raise
-
     def wait_for_downloads(self):
         try:
             self.check_driver()
@@ -676,7 +607,7 @@ class SeatDataScraper:
             self.driver.quit()
             print("Browser closed")
 
-    def run(self, num_files=7):
+    def run(self, num_files=14):
         try:
             self.setup_driver()
             self.login()
@@ -691,12 +622,12 @@ class SeatDataScraper:
 
 def main():
     username = "ztareen@purdue.edu"
-    password = "q3yS$$%h8yp51eXK"
+    password = "q3yS$$%h8yp51eXK"  # Note: Consider using environment variables for credentials
     search_term = "seattle mariners"  # Now configurable
     
     scraper = SeatDataScraper(username, password, search_term)
     try:
-        scraper.run(num_files=7)
+        scraper.run(num_files=14)
     except Exception as e:
         print(f"Script failed with error: {str(e)}")
         input("Press Enter to close the browser...")
