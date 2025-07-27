@@ -5,22 +5,144 @@
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='frontend.css') }}">
 </head>
 <body>
-    <h1>🎟️ Ticket Timing Predictor</h1>
-    <button onclick="getPrediction()">Run Prediction</button>
-    <pre id="output"></pre>
+    <h1 style="margin-bottom: 24px;">🎟️ Ticket Timing Predictor</h1>
+    <div id="output" style="display:none; max-width: 800px; margin: 0 auto 24px auto; background: #fff2; border-radius: 12px; box-shadow: 0 2px 12px #0002; padding: 24px;"></div>
+    <div id="events" style="max-width: 900px; margin: 0 auto;"></div>
 
     <script>
-        async function getPrediction() {
+        function clearBoxes(except) {
             const outputDiv = document.getElementById("output");
-            outputDiv.innerText = "Running model...";
+            const eventsDiv = document.getElementById("events");
+            if (except === "output") {
+                eventsDiv.innerHTML = "";
+            } else if (except === "events") {
+                outputDiv.innerHTML = "";
+                outputDiv.style.display = "none";
+            } else {
+                outputDiv.innerHTML = "";
+                outputDiv.style.display = "none";
+                eventsDiv.innerHTML = "";
+            }
+        }
+
+        async function getEvents() {
+            clearBoxes("events");
+            const eventsDiv = document.getElementById("events");
+            eventsDiv.innerHTML = "Loading events...";
             try {
-                const response = await fetch("/run", { method: "POST" });
+                const response = await fetch("/api/events");
+                let events = await response.json();
+                if (events.error) {
+                    eventsDiv.innerText = "Error: " + events.error;
+                    return;
+                }
+                // Handle both single event object and array of events
+                if (!Array.isArray(events)) {
+                    if (typeof events === "object" && events !== null) {
+                        events = [events];
+                    } else {
+                        eventsDiv.innerText = "No events found.";
+                        return;
+                    }
+                }
+                // Filter for upcoming events only (from today onward)
+                const today = new Date();
+                events = events.filter(ev => {
+                    if (!ev.start_date) return false;
+                    const eventDate = new Date(ev.start_date);
+                    return eventDate >= today;
+                });
+                // Sort by date ascending
+                events.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+                // Show only the next 20 events
+                events = events.slice(0, 20);
+                if (events.length === 0) {
+                    eventsDiv.innerText = "No upcoming events found.";
+                    return;
+                }
+                eventsDiv.innerHTML = `<h2 style="margin-bottom: 18px;">Upcoming Events</h2>` + events.map(ev => {
+                    let html = `<div class='event-card' style="border:1px solid #bbb; margin:18px 0; padding:18px; background:#fff; border-radius:14px; box-shadow:0 2px 8px #0001;">`;
+                    html += `<h3 style='margin-bottom:10px; color:#222;'>${ev.event_name || "Unnamed Event"}</h3>`;
+                    if (ev.image) html += `<img src="${ev.image}" alt="event image" style="max-width:180px; margin-bottom:10px; border-radius:8px;"><br>`;
+                    if (ev.start_date || ev.start_time) html += `<b>Date:</b> ${ev.start_date || ""}${ev.start_time ? " " + ev.start_time : ""}<br>`;
+                    if (ev.venue_name || ev.city || ev.state || ev.country) {
+                        let venue = [ev.venue_name, ev.city, ev.state, ev.country].filter(Boolean).join(", ");
+                        if (venue) html += `<b>Venue:</b> ${venue}<br>`;
+                    }
+                    if (ev.ticket_status) html += `<b>Ticket Status:</b> ${ev.ticket_status}<br>`;
+                    if (ev.public_sale_start) html += `<b>Sale Start:</b> ${ev.public_sale_start}<br>`;
+                    if (ev.public_sale_end) html += `<b>Sale End:</b> ${ev.public_sale_end}<br>`;
+                    if (ev.seatmap_url) html += `<b>Seatmap:</b> <a href="${ev.seatmap_url}" target="_blank">View Seatmap</a><br>`;
+                    if (ev.accessibility_info) html += `<b>Accessibility:</b> ${ev.accessibility_info}<br>`;
+                    if (ev.ticket_limit) html += `<b>Ticket Limit:</b> ${ev.ticket_limit}<br>`;
+                    if (ev.timezone) html += `<b>Timezone:</b> ${ev.timezone}<br>`;
+                    if (ev.venue_timezone) html += `<b>Venue Timezone:</b> ${ev.venue_timezone}<br>`;
+                    if (ev.segment) html += `<b>Segment:</b> ${ev.segment}<br>`;
+                    if (ev.genre) html += `<b>Genre:</b> ${ev.genre}<br>`;
+                    if (ev.subGenre) html += `<b>SubGenre:</b> ${ev.subGenre}<br>`;
+                    if (ev.url) html += `<b>Event URL:</b> <a href="${ev.url}" target="_blank">Link</a><br>`;
+                    // Add button to run model for this event
+                    html += `<button style="margin-top:10px; padding:8px 16px; background:#4b6cb7; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;" onclick="runModelForEvent('${ev.event_name}', '${ev.start_date}')">Run Model for This Event</button>`;
+                    html += `</div>`;
+                    return html;
+                }).join('');
+            } catch (err) {
+                eventsDiv.innerText = "Request failed: " + err;
+            }
+        }
+
+        // Load events automatically on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            getEvents();
+        });
+
+        // Add JS function to run model for a specific event
+        async function runModelForEvent(eventName, eventDate) {
+            clearBoxes("output");
+            const outputDiv = document.getElementById("output");
+            outputDiv.style.display = "block";
+            outputDiv.innerText = `Running model for ${eventName} (${eventDate})...`;
+            try {
+                const response = await fetch("/run", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ event_name: eventName, event_date: eventDate })
+                });
                 const data = await response.json();
                 if (data.error) {
                     outputDiv.innerText = "Error: " + data.error;
                     return;
                 }
+                // Calculate countdowns
+                const today = new Date();
+                const eventDateObj = new Date(data.event_date);
+                // Overall buy day countdown
+                let buyDayOverall = new Date(eventDateObj);
+                buyDayOverall.setDate(eventDateObj.getDate() - data.buy_days_overall);
+                let daysUntilBuyOverall = Math.ceil((buyDayOverall - today) / (1000 * 60 * 60 * 24));
 
+                // Section-wise output
+                let sectionTable = `<table border='1' style='border-collapse:collapse; margin-top:10px;'>
+                  <tr><th>Section</th><th>Predicted Price</th><th>Buy If Price ≤</th><th>Buy Days In Advance</th><th>Countdown to Buy Day</th></tr>`;
+                for (const section in data.predicted_price_by_section) {
+                  const predPrice = data.predicted_price_by_section[section];
+                  const buyRange = data.buy_price_by_section[section];
+                  const buyDays = data.buy_days_by_section[section];
+                  // Calculate countdown for this section
+                  let buyDaySection = new Date(eventDateObj);
+                  buyDaySection.setDate(eventDateObj.getDate() - buyDays);
+                  let daysUntilBuySection = Math.ceil((buyDaySection - today) / (1000 * 60 * 60 * 24));
+                  sectionTable += `<tr>
+                    <td>${section}</td>
+                    <td>$${predPrice !== null ? predPrice : 'N/A'}</td>
+                    <td>$${buyRange ? buyRange[1] : 'N/A'}</td>
+                    <td>${buyDays !== undefined ? buyDays : 'N/A'}</td>
+                    <td>${daysUntilBuySection >= 0 ? daysUntilBuySection + ' days' : 'Passed'}</td>
+                  </tr>`;
+                }
+                sectionTable += `</table>`;
+
+                outputDiv.style.display = "block";
                 outputDiv.innerHTML = `
                   <h2>Event: ${data.event}</h2>
                   <b>Date:</b> ${data.event_date}<br>
@@ -32,18 +154,24 @@
                   Recommendation: <b style="color:${data.recommendation_code}">${data.recommendation}</b><br><br>
 
                   <h3>⏱️ Timing Analysis</h3>
-                  Avg optimal days: ${data.average_best_days}<br>
-                  ${Object.entries(data.timing_by_zone).map(([zone, days]) => `
-                    ${zone}: ${days} days<br>
-                  `).join('')}<br>
+                  <b>Overall Buy Days In Advance:</b> ${data.buy_days_overall} days<br>
+                  <b>Countdown to Overall Buy Day:</b> ${daysUntilBuyOverall >= 0 ? daysUntilBuyOverall + ' days' : 'Passed'}<br>
+                  ${sectionTable}
 
                   <h3>🧠 Feature Importance</h3>
                   ${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.map(f => `${f}<br>`).join('') : 'N/A'}<br>
 
                   <h3>🔎 Summary Insights</h3>
                   Price range: $${data.price_range[0]} - $${data.price_range[1]}<br>
-                  Key factors: ${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.join(', ') : 'N/A'}
+                  Key factors: ${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.join(', ') : 'N/A'}<br><br>
+
+                  <button id="backHomeBtn" style="margin-top:24px; padding:10px 24px; background:#4b6cb7; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:1.1em; font-weight:600;" onclick="backToHome()">Back to Home</button>
                 `;
+                // Add backToHome function
+                window.backToHome = function() {
+                  clearBoxes("events");
+                  getEvents();
+                };
             } catch (err) {
                 outputDiv.innerText = "Request failed: " + err;
             }

@@ -12,17 +12,10 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 import warnings
 from datetime import date
 warnings.filterwarnings('ignore')#test
+
 today = date.today()
-
-#need to make it so that it goes thru the csv file with event data
-#figures out dates and event names
-#inputs that in proper format into "seat_data_path"
-#then runs this code and gets output for that event
-
-
-
-# === EDITABLE FILE PATHS ===
-SEAT_DATA_PATH = "C:\\Users\\zarak\\Downloads\\TestData_Mariners\\Seattle-Mariners-at-New-York-Yankees-2025-07-10.csv"  # <-- Edit this as needed
+# NOTE: seat_data_path is now always passed as a function argument from app.py
+# Remove hardcoded SEAT_DATA_PATH and ensure all functions use the provided path
 EVENT_DATA_PATH = f"C:/Users/zarak/OneDrive/Documents/GitHub/ticket_model/event_data_{today.year}.{today.month:02d}.{today.day:02d}.csv"
 
 class TicketTimingOptimizer:
@@ -319,98 +312,18 @@ class TicketTimingOptimizer:
 def main():
     # Initialize the optimizer
     optimizer = TicketTimingOptimizer()
-    
-    # Define file paths and target event
-    seat_data_path = SEAT_DATA_PATH
-    event_data_path = EVENT_DATA_PATH
-    target_game = "Seattle_Mariners_at_Minnesota_Twins"
-    target_date = "2025-06-25"
-    
-    print("Loading and preparing data...")
-    df = optimizer.load_and_prepare_data(seat_data_path, event_data_path, target_game, target_date)
-    
-    print(f"Loaded {len(df)} ticket records")
-    print(f"Date range: {df['date'].min()} to {df['date'].max()}")
-    print(f"Days until event range: {df['days_until_event'].min()} to {df['days_until_event'].max()}")
-    
-    print("\nTraining models...")
-    X_train, X_test, y_class_test, y_reg_test, class_pred, reg_pred, df_with_optimal = optimizer.train_model(df)
-    
-    print("\n=== FEATURE IMPORTANCE ===")
-    if optimizer.feature_importance is not None:
-        print(optimizer.feature_importance.head(10))
-    else:
-        print("Feature importance not available")
-    
-    print("\n=== TIMING ANALYSIS ===")
-    timing_analysis = optimizer.analyze_timing_patterns(df_with_optimal)
-    print(f"Average optimal timing: {timing_analysis['overall_avg_days']:.1f} days before event")
-    print("Optimal timing by zone:")
-    for zone, days in timing_analysis['by_zone'].items():
-        print(f"  Zone {zone}: {days:.1f} days")
-    
-    # Create visualizations
-    print("\nGenerating visualizations...")
-    fig = optimizer.visualize_results(df, df_with_optimal)
-    
-    # Example prediction for current conditions
-    print("\n=== EXAMPLE PREDICTION ===")
-    # Simulate current ticket conditions
-    current_features = np.array([
-        30,  # days_until_event
-        150, # price
-        4,   # quantity
-        2,   # day_of_week
-        0,   # is_weekend
-        25,  # week_of_year
-        6,   # month
-        0.05, # price_change
-        145,  # price_rolling_mean_3d
-        5,    # price_rolling_std_3d
-        0.1,  # price_volatility
-        0.02, # quantity_change
-        50    # total_quantity_by_section
-    ])
-    
-    # Add zeros for categorical encoded features if they exist
-    n_features = len(optimizer.create_features(df).columns)
-    if len(current_features) < n_features:
-        current_features = np.concatenate([current_features, np.zeros(n_features - len(current_features))])
-    
-    try:
-        optimal_prob, predicted_price = optimizer.predict_optimal_timing(current_features)
-        print(f"Probability this is optimal timing: {optimal_prob:.3f}")
-        print(f"Predicted price: ${predicted_price:.2f}")
-        if optimal_prob > 0.7:
-            print("🟢 RECOMMENDATION: Good time to buy!")
-        elif optimal_prob > 0.4:
-            print("🟡 RECOMMENDATION: Consider waiting a bit longer")
-        else:
-            print("🔴 RECOMMENDATION: Wait for better timing")
-            
-    except Exception as e:
-        print(f"Prediction error: {e}")
-    
-    print("\n=== SUMMARY INSIGHTS ===")
-    print(f"• Best average timing: {timing_analysis['overall_avg_days']:.1f} days before the event")
-    print(f"• Price range: ${df['price'].min():.2f} - ${df['price'].max():.2f}")
-    if optimizer.feature_importance is not None:
-        print(f"• Most important factors: {', '.join(optimizer.feature_importance.head(3)['feature'].tolist())}")
-    else:
-        print("• Most important factors: Not available")
-    
-    return optimizer, df, df_with_optimal
+    # Example usage: pass seat_data_path as argument
+    # seat_data_path, event_data_path, target_game, target_date should be provided by caller
+    # ...existing code...
+    return optimizer, None, None
 
 if __name__ == "__main__":
-    optimizer, df, df_with_optimal = main()
+    # For manual testing, you can specify a seat_data_path here
+    pass
 
-def run_ticket_model():
+def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
+    # Called by app.py with all arguments provided
     optimizer = TicketTimingOptimizer()
-    seat_data_path = SEAT_DATA_PATH
-    event_data_path = EVENT_DATA_PATH
-    target_game = "Seattle_Mariners_at_Minnesota_Twins"
-    target_date = "2025-06-25"
-
     df = optimizer.load_and_prepare_data(seat_data_path, event_data_path, target_game, target_date)
     X_train, X_test, y_class_test, y_reg_test, class_pred, reg_pred, df_with_optimal = optimizer.train_model(df)
     timing_analysis = optimizer.analyze_timing_patterns(df_with_optimal)
@@ -438,9 +351,13 @@ def run_ticket_model():
     # Collect optimal timing by zone and by section
     timing_by_zone = {str(k): round(float(v), 2) for k, v in timing_analysis['by_zone'].items()}
     timing_by_section = {}
+    buy_days_by_section = {}
     if 'section' in df.columns and 'optimal_days_before' in df_with_optimal.columns:
         section_group = df_with_optimal.groupby('section')['optimal_days_before'].mean()
         timing_by_section = {str(k): round(float(v), 2) for k, v in section_group.items()}
+        buy_days_by_section = timing_by_section.copy()
+    # Overall event buy days
+    buy_days_overall = round(float(timing_analysis['overall_avg_days']), 2)
 
     # Group sections for frontend display
     section_group_map = {
@@ -473,11 +390,27 @@ def run_ticket_model():
     price_max = float(df['price'].max())
     price_range = [round(price_min, 2), round(price_max, 2)]
     price_range_by_section = {}
+    predicted_price_by_section = {}
+    buy_price_by_section = {}
     if 'section' in df.columns:
         for section, group in df.groupby('section'):
             min_p = round(float(group['price'].min()), 2)
             max_p = round(float(group['price'].max()), 2)
             price_range_by_section[str(section)] = [min_p, max_p]
+            # Predicted price for this section: use model_regressor on mean features for section
+            section_features = optimizer.create_features(group).mean().values
+            section_features = np.array(section_features)
+            if len(section_features) < n_features:
+                section_features = np.concatenate([section_features, np.zeros(n_features - len(section_features))])
+            try:
+                section_pred_price = optimizer.model_regressor.predict(section_features.reshape(1, -1))[0]
+                predicted_price_by_section[str(section)] = round(float(section_pred_price), 2)
+            except Exception:
+                predicted_price_by_section[str(section)] = None
+            # Recommended buy price range for this section (10th-30th percentile)
+            buy_low = round(float(group['price'].quantile(0.10)), 2)
+            buy_high = round(float(group['price'].quantile(0.30)), 2)
+            buy_price_by_section[str(section)] = [buy_low, buy_high]
 
     # Recommended buy price range (e.g., 10th-30th percentile of prices)
     buy_price_low = round(float(df['price'].quantile(0.10)), 2)
@@ -524,7 +457,7 @@ def run_ticket_model():
     )
 
     return {
-        'event': 'Seattle Mariners at Minnesota Twins',
+        'event': target_game,
         'event_date': target_date,
         'event_details': event_details,
         'optimal_probability': round(optimal_prob, 2),
@@ -538,6 +471,10 @@ def run_ticket_model():
         'price_range': price_range,
         'price_range_by_section': price_range_by_section,
         'buy_price_range': buy_price_range,
+        'predicted_price_by_section': predicted_price_by_section,
+        'buy_price_by_section': buy_price_by_section,
+        'buy_days_by_section': buy_days_by_section,
+        'buy_days_overall': buy_days_overall,
         'recommendation': recommendation,
         'recommendation_code': rec_code,
         'wait_days': wait_days

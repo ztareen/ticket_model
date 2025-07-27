@@ -189,6 +189,23 @@ df = df.drop('sort_datetime', axis=1)
 df = df.reset_index(drop=True)
 
 # Save to CSV
+
+# Export all events for Flask API
+
+# Filter for upcoming events only (from today onward)
+today = datetime.now().date()
+def is_upcoming(ev):
+    try:
+        if not ev.get('start_date'): return False
+        event_date = datetime.strptime(ev['start_date'][:10], "%Y-%m-%d").date()
+        return event_date >= today
+    except Exception:
+        return False
+upcoming_events = list(filter(is_upcoming, event_info_list))
+# Sort by date ascending
+upcoming_events.sort(key=lambda ev: ev.get('start_date', ''))
+event_info = upcoming_events
+
 filename = f"event_data_{datetime.now().strftime('%Y.%m.%d')}.csv"
 df.to_csv(filename, index=False)
 print(f"Saved {len(df)} events to {filename} (sorted by date)")

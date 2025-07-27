@@ -2,6 +2,7 @@ import time
 import os
 import glob
 import fnmatch
+import re
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -549,6 +550,92 @@ class SeatDataScraper:
         except Exception as e:
             print(f"Error closing sidebar: {str(e)}")
 
+    def reorder_event_name_for_mariners(self, event_name):
+        """Reorder event name to ensure Seattle Mariners appears first"""
+        try:
+            # Convert to lowercase for matching
+            event_lower = event_name.lower()
+            
+            # Common patterns for Seattle Mariners
+            mariners_variations = [
+                'seattle mariners',
+                'mariners',
+                'sea mariners'
+            ]
+            
+            # Check if this is a Mariners game
+            has_mariners = any(variation in event_lower for variation in mariners_variations)
+            
+            if not has_mariners:
+                # If no Mariners reference found, return original name
+                return event_name
+            
+            # Clean the event name
+            clean_event = event_name.replace("/", "-").replace("\\", "-").replace(":", "-").replace(" ", "-")
+            
+            # Split by common separators to find team names
+            separators = [' at ', ' vs ', ' v ', '@', '-at-', '-vs-', '-v-']
+            parts = [clean_event]
+            
+            # Try to split by separators
+            for sep in separators:
+                for i, part in enumerate(parts):
+                    if sep in part.lower():
+                        split_parts = part.split(sep, 1)
+                        parts = parts[:i] + split_parts + parts[i+1:]
+                        break
+                if len(parts) > 1:
+                    break
+            
+            if len(parts) >= 2:
+                team1 = parts[0].strip()
+                team2 = parts[1].strip()
+                
+                # Check which team is the Mariners
+                team1_lower = team1.lower()
+                team2_lower = team2.lower()
+                
+                mariners_is_team1 = any(variation in team1_lower for variation in mariners_variations)
+                mariners_is_team2 = any(variation in team2_lower for variation in mariners_variations)
+                
+                if mariners_is_team2 and not mariners_is_team1:
+                    # Swap teams so Mariners come first
+                    print(f"Reordering teams: '{team1}' and '{team2}' -> 'Seattle-Mariners' first")
+                    return f"Seattle-Mariners-vs-{team1}"
+                elif mariners_is_team1:
+                    # Mariners already first, but ensure consistent naming
+                    return f"Seattle-Mariners-vs-{team2}"
+            
+            # If we can't parse teams properly, ensure Seattle-Mariners is at the start
+            if not clean_event.lower().startswith('seattle-mariners'):
+                # Try to extract the opponent team name
+                # Remove common Mariners references to isolate opponent
+                opponent_name = clean_event
+                for variation in ['seattle-mariners', 'mariners', 'sea-mariners']:
+                    # Remove the variation and common connectors
+                    opponent_name = re.sub(rf'{variation}[-\s]*(?:at|vs|v|@)[-\s]*', '', opponent_name, flags=re.IGNORECASE)
+                    opponent_name = re.sub(rf'[-\s]*(?:at|vs|v|@)[-\s]*{variation}', '', opponent_name, flags=re.IGNORECASE)
+                    opponent_name = re.sub(rf'{variation}', '', opponent_name, flags=re.IGNORECASE)
+                
+                # Clean up any leftover separators
+                opponent_name = re.sub(r'^[-\s]+|[-\s]+$', '', opponent_name)
+                opponent_name = re.sub(r'[-\s]+', '-', opponent_name)
+                
+                if opponent_name and opponent_name != clean_event:
+                    return f"Seattle-Mariners-vs-{opponent_name}"
+                else:
+                    return f"Seattle-Mariners-{clean_event}"
+            
+            return clean_event
+            
+        except Exception as e:
+            print(f"Error reordering event name: {str(e)}")
+            # Fallback: just ensure Seattle-Mariners is first
+            clean_event = event_name.replace("/", "-").replace("\\", "-").replace(":", "-").replace(" ", "-")
+            if not clean_event.lower().startswith('seattle-mariners'):
+                return f"Seattle-Mariners-{clean_event}"
+            return clean_event
+
     def rename_downloaded_file(self, event_name, event_date):
         """Rename the most recently downloaded CSV file and move it to the target folder"""
         try:
@@ -560,13 +647,17 @@ class SeatDataScraper:
             csv_files = glob.glob(os.path.join(downloads_dir, "*.csv"))
             if csv_files:
                 latest_file = max(csv_files, key=os.path.getctime)
-                # Clean up the event name and date for filename
-                clean_event_name = event_name.replace("/", "-").replace("\\", "-").replace(":", "-").replace(" ", "-")
+                
+                # Reorder event name to ensure Seattle Mariners comes first
+                reordered_event_name = self.reorder_event_name_for_mariners(event_name)
+                
                 # Remove day of week in parenthesis from event_date, e.g. '2025-06-24 (Tue)' -> '2025-06-24'
                 clean_date = event_date.split(' (')[0].replace("/", "-").replace("\\", "-").replace(" ", "-")
+                
                 # Create new filename (no extension in name, add .csv)
-                new_filename = f"{clean_event_name}-{clean_date}.csv"
+                new_filename = f"{reordered_event_name}-{clean_date}.csv"
                 new_filepath = os.path.join(target_dir, new_filename)
+                
                 # Move and rename the file
                 os.rename(latest_file, new_filepath)
                 print(f"Moved and renamed file to: {new_filepath}")
