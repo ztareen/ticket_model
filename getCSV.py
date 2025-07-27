@@ -13,6 +13,8 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 
+#next thing is clicking page 2 and doing it all over again same w/ maybe page 3
+
 class SeatDataScraper:
     def __init__(self, username, password, search_term="seattle mariners"):
         self.username = username
@@ -718,7 +720,7 @@ def main():
     
     scraper = SeatDataScraper(username, password, search_term)
     try:
-        scraper.run(num_files=14)
+        scraper.run(num_files=20)
     except Exception as e:
         print(f"Script failed with error: {str(e)}")
         input("Press Enter to close the browser...")
