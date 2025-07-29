@@ -281,6 +281,26 @@ class SeatDataScraper:
             search_input.send_keys(Keys.RETURN)
             time.sleep(3)
             print(f"Search for '{self.search_term}' completed")
+
+            # Set entries per page to 50
+            print("Setting entries per page to 50...")
+            try:
+                entries_dropdown = self.wait.until(EC.presence_of_element_located((
+                    By.CSS_SELECTOR, "select#dt-length-1.dt-input"
+                )))
+                self.driver.execute_script("arguments[0].scrollIntoView(true);", entries_dropdown)
+                time.sleep(1)
+                entries_dropdown.click()
+                time.sleep(0.5)
+                # Select the option with value '50'
+                for option in entries_dropdown.find_elements(By.TAG_NAME, "option"):
+                    if option.get_attribute("value") == "50":
+                        option.click()
+                        print("Selected 50 entries per page.")
+                        break
+                time.sleep(3)  # Wait for table to reload
+            except Exception as e:
+                print(f"Could not set entries per page: {str(e)}")
         except Exception as e:
             print(f"Search failed: {str(e)}")
             raise
@@ -720,7 +740,7 @@ def main():
     
     scraper = SeatDataScraper(username, password, search_term)
     try:
-        scraper.run(num_files=20)
+        scraper.run(num_files=30)
     except Exception as e:
         print(f"Script failed with error: {str(e)}")
         input("Press Enter to close the browser...")
