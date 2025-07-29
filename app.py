@@ -91,9 +91,21 @@ def run_script():
                 top_features = []
             timing_by_zone = {str(k): round(float(v), 2) for k, v in timing_analysis['by_zone'].items()}
             timing_by_section = {}
+            predicted_price_by_section = {}
+            buy_price_by_section = {}
+            buy_days_by_section = {}
             if 'section' in df.columns and 'optimal_days_before' in df_with_optimal.columns:
                 section_group = df_with_optimal.groupby('section')['optimal_days_before'].mean()
                 timing_by_section = {str(k): round(float(v), 2) for k, v in section_group.items()}
+                # Predicted price by section: use mean price per section
+                price_group = df.groupby('section')['price'].mean()
+                predicted_price_by_section = {str(k): round(float(v), 2) for k, v in price_group.items()}
+                # Buy price by section: use quantiles per section
+                for section, group in df.groupby('section'):
+                    buy_low = round(float(group['price'].quantile(0.10)), 2)
+                    buy_high = round(float(group['price'].quantile(0.30)), 2)
+                    buy_price_by_section[str(section)] = [buy_low, buy_high]
+                    buy_days_by_section[str(section)] = round(float(group['optimal_days_before'].mean()), 2) if 'optimal_days_before' in group.columns else None
             price_min = float(df['price'].min())
             price_max = float(df['price'].max())
             price_range = [round(price_min, 2), round(price_max, 2)]
@@ -151,7 +163,10 @@ def run_script():
                 'buy_price_range': buy_price_range,
                 'recommendation': recommendation,
                 'recommendation_code': rec_code,
-                'wait_days': wait_days
+                'wait_days': wait_days,
+                'predicted_price_by_section': predicted_price_by_section,
+                'buy_price_by_section': buy_price_by_section,
+                'buy_days_by_section': buy_days_by_section
             })
         else:
             # Fallback to default model if no event_name/date provided

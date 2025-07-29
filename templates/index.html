@@ -144,28 +144,77 @@
 
                 outputDiv.style.display = "block";
                 outputDiv.innerHTML = `
-                  <h2>Event: ${data.event}</h2>
-                  <b>Date:</b> ${data.event_date}<br>
-                  <b>Details:</b> ${Object.entries(data.event_details || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}<br><br>
-
-                  <h3>🎯 Prediction</h3>
-                  Probability optimal: <b>${data.optimal_probability}</b><br>
-                  Predicted price: <b>$${data.predicted_price}</b><br>
-                  Recommendation: <b style="color:${data.recommendation_code}">${data.recommendation}</b><br><br>
-
-                  <h3>⏱️ Timing Analysis</h3>
-                  <b>Overall Buy Days In Advance:</b> ${data.buy_days_overall} days<br>
-                  <b>Countdown to Overall Buy Day:</b> ${daysUntilBuyOverall >= 0 ? daysUntilBuyOverall + ' days' : 'Passed'}<br>
-                  ${sectionTable}
-
-                  <h3>🧠 Feature Importance</h3>
-                  ${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.map(f => `${f}<br>`).join('') : 'N/A'}<br>
-
-                  <h3>🔎 Summary Insights</h3>
-                  Price range: $${data.price_range[0]} - $${data.price_range[1]}<br>
-                  Key factors: ${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.join(', ') : 'N/A'}<br><br>
-
-                  <button id="backHomeBtn" style="margin-top:24px; padding:10px 24px; background:#4b6cb7; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:1.1em; font-weight:600;" onclick="backToHome()">Back to Home</button>
+                  <div style="background:#f8faff; border-radius:16px; box-shadow:0 2px 16px #0002; padding:32px; max-width:700px; margin:0 auto;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+                      <div>
+                        <h2 style="margin:0; color:#2a3d66; font-size:2em;">${data.event}</h2>
+                        <div style="font-size:1.1em; color:#4b6cb7; margin-top:4px;"><b>Date:</b> ${data.event_date}</div>
+                      </div>
+                      <div>
+                        <button id="backHomeBtn" style="padding:10px 24px; background:#4b6cb7; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:1em; font-weight:600;" onclick="backToHome()">Back to Home</button>
+                      </div>
+                    </div>
+                    <div style="margin-bottom:18px; color:#333;">
+                      <b>Details:</b> <span style="color:#555;">${Object.entries(data.event_details || {}).map(([k, v]) => `<span style='margin-right:10px;'><b>${k}:</b> ${v}</span>`).join('')}</span>
+                    </div>
+                    <div style="display:flex; gap:32px; flex-wrap:wrap; margin-bottom:24px;">
+                      <div style="flex:1; min-width:220px; background:#eaf0fb; border-radius:10px; padding:18px; box-shadow:0 1px 6px #0001;">
+                        <h3 style="margin-top:0; color:#2a3d66;">🎯 Prediction</h3>
+                        <div style="margin-bottom:8px;"><b>Probability optimal:</b> <span style="color:#4b6cb7; font-weight:600;">${data.optimal_probability}</span></div>
+                        <div style="margin-bottom:8px;"><b>Predicted price:</b> <span style="color:#2a3d66; font-weight:600;">$${data.predicted_price}</span></div>
+                        <div><b>Recommendation:</b> <span style="color:${data.recommendation_code}; font-weight:600;">${data.recommendation}</span></div>
+                      </div>
+                      <div style="flex:1; min-width:220px; background:#eaf0fb; border-radius:10px; padding:18px; box-shadow:0 1px 6px #0001;">
+                        <h3 style="margin-top:0; color:#2a3d66;">⏱️ Timing Analysis</h3>
+                        <div style="margin-bottom:8px;"><b>Overall Buy Days In Advance:</b> <span style="color:#4b6cb7; font-weight:600;">${data.buy_days_overall} days</span></div>
+                        <div style="margin-bottom:8px;"><b>Countdown to Overall Buy Day:</b> <span style="color:#2a3d66; font-weight:600;">${daysUntilBuyOverall >= 0 ? daysUntilBuyOverall + ' days' : 'Passed'}</span></div>
+                      </div>
+                    </div>
+                    <div style="margin-bottom:24px;">
+                      <h3 style="color:#2a3d66;">Section-wise Prediction</h3>
+                      <div style="overflow-x:auto;">
+                        <table border='0' style='border-collapse:collapse; width:100%; background:#fff; box-shadow:0 1px 6px #0001; border-radius:8px; overflow:hidden;'>
+                          <thead style="background:#eaf0fb;">
+                            <tr style="color:#2a3d66; font-weight:700;">
+                              <th style="padding:10px 8px;">Section</th>
+                              <th style="padding:10px 8px;">Predicted Price</th>
+                              <th style="padding:10px 8px;">Buy If Price ≤</th>
+                              <th style="padding:10px 8px;">Buy Days In Advance</th>
+                              <th style="padding:10px 8px;">Countdown to Buy Day</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${Object.keys(data.predicted_price_by_section).map(section => {
+                              const predPrice = data.predicted_price_by_section[section];
+                              const buyRange = data.buy_price_by_section[section];
+                              const buyDays = data.buy_days_by_section[section];
+                              let buyDaySection = new Date(data.event_date);
+                              buyDaySection.setDate(buyDaySection.getDate() - buyDays);
+                              let daysUntilBuySection = Math.ceil((buyDaySection - new Date()) / (1000 * 60 * 60 * 24));
+                              return `<tr style="text-align:center;">
+                                <td style="padding:8px;">${section}</td>
+                                <td style="padding:8px; color:#2a3d66; font-weight:600;">$${predPrice !== null ? predPrice : 'N/A'}</td>
+                                <td style="padding:8px; color:#4b6cb7; font-weight:600;">$${buyRange ? buyRange[1] : 'N/A'}</td>
+                                <td style="padding:8px;">${buyDays !== undefined ? buyDays : 'N/A'}</td>
+                                <td style="padding:8px; color:${daysUntilBuySection >= 0 ? '#2a3d66' : '#b74b4b'}; font-weight:600;">${daysUntilBuySection >= 0 ? daysUntilBuySection + ' days' : 'Passed'}</td>
+                              </tr>`;
+                            }).join('')}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div style="display:flex; gap:32px; flex-wrap:wrap; margin-bottom:24px;">
+                      <div style="flex:1; min-width:220px; background:#eaf0fb; border-radius:10px; padding:18px; box-shadow:0 1px 6px #0001;">
+                        <h3 style="margin-top:0; color:#2a3d66;">🧠 Feature Importance</h3>
+                        <div style="color:#333;">${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.map(f => `<span style='margin-right:10px;'>${f}</span>`).join('') : 'N/A'}</div>
+                      </div>
+                      <div style="flex:1; min-width:220px; background:#eaf0fb; border-radius:10px; padding:18px; box-shadow:0 1px 6px #0001;">
+                        <h3 style="margin-top:0; color:#2a3d66;">🔎 Summary Insights</h3>
+                        <div style="margin-bottom:8px;"><b>Price range:</b> <span style="color:#2a3d66; font-weight:600;">$${data.price_range[0]} - $${data.price_range[1]}</span></div>
+                        <div><b>Key factors:</b> <span style="color:#4b6cb7; font-weight:600;">${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.join(', ') : 'N/A'}</span></div>
+                      </div>
+                    </div>
+                  </div>
                 `;
                 // Add backToHome function
                 window.backToHome = function() {
