@@ -26,37 +26,54 @@ def run_model():
 @app.route('/run', methods=['POST'])
 def run_script():
     try:
-        data = request.get_json(force=True)
-        event_name = data.get('event_name')
-        event_date = data.get('event_date')
-        # Construct seat data path based on event name and date
-        # Example: Seattle-Mariners-at-Los-Angeles-Angels-2025-07-27.csv
+        data = request.get_json()
+        event_name = data.get('event_name', '')
+        event_date = data.get('event_date', '')
+        
+        # Block the specific event from ever being processed
+        if (event_name and event_date and 
+            'mariners' in event_name.lower() and 
+            'miami marlins' in event_name.lower() and 
+            '2025-04-25' in event_date):
+            return jsonify({'error': 'This event is not available for analysis.'}), 400
+        
         if event_name and event_date:
-            # Always format filename as 'Seattle-Mariners-at-Opponent-YYYY-MM-DD.csv'
-            # Extract opponent from event_name (assume format: 'Seattle Mariners at Opponent' or 'Opponent at Seattle Mariners')
-            base_team = 'Seattle-Mariners'
-            # Remove extra info (e.g., after dash or colon)
-            main_name = event_name.split('-')[0].split(':')[0].strip()
-            # Try to extract opponent
-            opponent = None
-            if ' at ' in event_name:
-                parts = event_name.split(' at ')
-                if base_team.replace('-', ' ') in parts[0]:
-                    opponent = parts[1]
-                else:
-                    opponent = parts[0]
+            # Extract opponent name from event name
+            opponent = event_name
+            
+            # Handle different event name formats
+            if ' vs. ' in event_name:
+                parts = event_name.split(' vs. ')
+                if len(parts) == 2:
+                    # If first part is "Athletics" and second part is "Seattle Mariners", take "Athletics"
+                    if parts[0].strip() == 'Athletics' and 'Seattle Mariners' in parts[1]:
+                        opponent = 'Athletics'
+                    # If first part is "Seattle Mariners", take the second part
+                    elif 'Seattle Mariners' in parts[0]:
+                        opponent = parts[1].strip()
+                    # Otherwise take the first part
+                    else:
+                        opponent = parts[0].strip()
             elif ' vs ' in event_name:
                 parts = event_name.split(' vs ')
-                if base_team.replace('-', ' ') in parts[0]:
-                    opponent = parts[1]
-                else:
-                    opponent = parts[0]
-            else:
-                # Fallback: remove 'Seattle Mariners' and use rest
-                opponent = event_name.replace('Seattle Mariners', '').strip()
-            # Remove anything after a dash, colon, or parenthesis (special event info)
-            opponent = opponent.split('-')[0].split(':')[0].split('(')[0].strip()
-            # Remove trailing 'vs.' or 'at' if present
+                if len(parts) == 2:
+                    if parts[0].strip() == 'Athletics' and 'Seattle Mariners' in parts[1]:
+                        opponent = 'Athletics'
+                    elif 'Seattle Mariners' in parts[0]:
+                        opponent = parts[1].strip()
+                    else:
+                        opponent = parts[0].strip()
+            elif ' at ' in event_name:
+                parts = event_name.split(' at ')
+                if len(parts) == 2:
+                    if parts[0].strip() == 'Athletics' and 'Seattle Mariners' in parts[1]:
+                        opponent = 'Athletics'
+                    elif 'Seattle Mariners' in parts[0]:
+                        opponent = parts[1].strip()
+                    else:
+                        opponent = parts[0].strip()
+            
+            # Clean up the opponent name
             opponent = opponent.replace('vs.', '').replace('at', '').replace('vs', '').strip()
             # Replace spaces with dashes
             opponent = opponent.replace(' ', '-')
@@ -82,8 +99,17 @@ def run_script():
             if len(current_features) < n_features:
                 current_features = np.concatenate([current_features, np.zeros(n_features - len(current_features))])
             optimal_prob, predicted_price = optimizer.predict_optimal_timing(current_features)
-            optimal_prob = float(optimal_prob)
-            predicted_price = float(predicted_price)
+            # Ensure optimal_prob is always a valid float between 0 and 1
+            try:
+                optimal_prob = float(optimal_prob)
+                if not (0.0 <= optimal_prob <= 1.0) or (optimal_prob is None) or (optimal_prob != optimal_prob):
+                    optimal_prob = 0.0
+            except Exception:
+                optimal_prob = 0.0
+            try:
+                predicted_price = float(predicted_price)
+            except Exception:
+                predicted_price = 0.0
             average_best_days = float(timing_analysis['overall_avg_days'])
             if optimizer.feature_importance is not None:
                 top_features = optimizer.feature_importance.head(3)['feature'].tolist()
@@ -96,7 +122,10 @@ def run_script():
             buy_days_by_section = {}
             if 'section' in df.columns and 'optimal_days_before' in df_with_optimal.columns:
                 section_group = df_with_optimal.groupby('section')['optimal_days_before'].mean()
+                # Remove NaN values from groupby result
+                section_group = section_group.dropna()
                 timing_by_section = {str(k): round(float(v), 2) for k, v in section_group.items()}
+                buy_days_by_section = timing_by_section.copy()
                 # Predicted price by section: use mean price per section
                 price_group = df.groupby('section')['price'].mean()
                 predicted_price_by_section = {str(k): round(float(v), 2) for k, v in price_group.items()}
@@ -105,7 +134,12 @@ def run_script():
                     buy_low = round(float(group['price'].quantile(0.10)), 2)
                     buy_high = round(float(group['price'].quantile(0.30)), 2)
                     buy_price_by_section[str(section)] = [buy_low, buy_high]
-                    buy_days_by_section[str(section)] = round(float(group['optimal_days_before'].mean()), 2) if 'optimal_days_before' in group.columns else None
+            else:
+                # Fallback: if columns missing, set None for each section
+                if 'section' in df.columns:
+                    buy_days_by_section = {str(k): None for k in df['section'].unique()}
+                else:
+                    buy_days_by_section = {}
             price_min = float(df['price'].min())
             price_max = float(df['price'].max())
             price_range = [round(price_min, 2), round(price_max, 2)]
@@ -121,22 +155,33 @@ def run_script():
             pred_price_low = round(float(df['price'].quantile(0.10)), 2)
             pred_price_high = round(float(df['price'].quantile(0.90)), 2)
             predicted_price_range = [pred_price_low, pred_price_high]
-            wait_days = None
-            if optimal_prob > 0.7:
-                recommendation = 'Good time to buy!'
-                rec_code = 'green'
-            elif optimal_prob > 0.4:
-                recommendation = 'Consider waiting a bit longer'
-                rec_code = 'yellow'
-                wait_days = max(0, round(average_best_days - current_features[0], 2))
+            # Calculate if optimal time has passed
+            current_days_until_event = current_features[0] if len(current_features) > 0 else 30
+            optimal_time_has_passed = current_days_until_event > average_best_days
+            
+            if optimal_time_has_passed:
+                # If optimal time has passed, adjust recommendation based on how far past we are
+                days_past_optimal = current_days_until_event - average_best_days
+                if days_past_optimal <= 7:
+                    recommendation = 'We recommend buying now - optimal time recently passed!'
+                    rec_code = 'green'
+                elif days_past_optimal <= 14:
+                    recommendation = 'We recommend buying now - optimal time has passed'
+                    rec_code = 'yellow'
+                else:
+                    recommendation = 'We recommend buying now - prices may be higher'
+                    rec_code = 'yellow'
             else:
-                if 'optimal_days_before' in df_with_optimal.columns:
-                    future_days = df_with_optimal[df_with_optimal['optimal_days_before'] > 0]['optimal_days_before']
-                    if not future_days.empty:
-                        wait_days = round(float(future_days.mean() - current_features[0]), 2)
-                        wait_days = max(0, wait_days)
-                recommendation = 'We recommend waiting {} more days'.format(wait_days if wait_days is not None else '?')
-                rec_code = 'red'
+                # If optimal time is in the future
+                if optimal_prob > 0.7:
+                    recommendation = 'We recommend buying now!'
+                    rec_code = 'green'
+                elif optimal_prob > 0.4:
+                    recommendation = 'We recommend waiting'
+                    rec_code = 'yellow'
+                else:
+                    recommendation = 'We recommend not purchasing at all'
+                    rec_code = 'yellow'
             event_details = {}
             if not df.empty:
                 for col in ['venue_id', 'segment', 'genre', 'ticket_status']:
@@ -155,6 +200,7 @@ def run_script():
                 'predicted_price': round(predicted_price, 2),
                 'predicted_price_range': predicted_price_range,
                 'average_best_days': round(average_best_days, 2),
+                'buy_days_overall': round(average_best_days, 2),
                 'feature_importance': top_features,
                 'timing_by_zone': timing_by_zone,
                 'timing_by_section': timing_by_section,
@@ -163,7 +209,6 @@ def run_script():
                 'buy_price_range': buy_price_range,
                 'recommendation': recommendation,
                 'recommendation_code': rec_code,
-                'wait_days': wait_days,
                 'predicted_price_by_section': predicted_price_by_section,
                 'buy_price_by_section': buy_price_by_section,
                 'buy_days_by_section': buy_days_by_section
@@ -173,7 +218,17 @@ def run_script():
             result = run_ticket_model()
             return jsonify(result)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        error_msg = str(e)
+        if "Seat data file not found" in error_msg:
+            return jsonify({'error': f"Data file not found for this event. Please ensure the seat data file exists: {error_msg}"}), 500
+        elif "Error reading seat data file" in error_msg:
+            return jsonify({'error': f"Error reading data file: {error_msg}"}), 500
+        elif "Error parsing dates" in error_msg:
+            return jsonify({'error': f"Date format error in data file: {error_msg}"}), 500
+        elif "No valid data found" in error_msg:
+            return jsonify({'error': f"No valid data found in the seat data file: {error_msg}"}), 500
+        else:
+            return jsonify({'error': f"Model execution failed: {error_msg}"}), 500
 
 # New endpoint to serve event info from ticketmaster_eventgetter
 @app.route("/api/events", methods=["GET"])
@@ -186,17 +241,35 @@ def get_events():
         def is_upcoming(ev):
             try:
                 if not ev.get('start_date'): return False
-                # Never show Mariners vs. Miami Marlins on 2025-04-25
-                if (
-                    (ev.get('event_name', '').lower().find('mariners') != -1 and
-                     ev.get('event_name', '').lower().find('miami marlins') != -1 and
-                     ev.get('start_date', '').startswith('2025-04-25'))
-                ):
+                
+                # Comprehensive filtering for the blocked event
+                event_name = ev.get('event_name', '').lower()
+                start_date = ev.get('start_date', '')
+                
+                # Block Mariners vs. Miami Marlins on 2025-04-25 (multiple variations)
+                # Check for the specific event name regardless of date format
+                if ('mariners' in event_name and 
+                    ('miami marlins' in event_name or 'marlins' in event_name) and 
+                    ('2025-04-25' in start_date or '4/25/25' in event_name or '4/25/2025' in event_name)):
                     return False
+                
+                # Block any event with this specific date and team combination
+                if ('2025-04-25' in start_date and 
+                    'mariners' in event_name and 
+                    'miami' in event_name):
+                    return False
+                
+                # Block the specific event by name pattern regardless of date
+                if ('4/25/25' in event_name and 
+                    'mariners' in event_name and 
+                    ('miami' in event_name or 'marlins' in event_name)):
+                    return False
+                
                 # Never show event with start_date exactly '2025-08-01 20:00:00'
-                if ev.get('start_date', '') == '2025-08-01 20:00:00':
+                if start_date == '2025-08-01 20:00:00':
                     return False
-                event_date = datetime.strptime(ev['start_date'][:10], "%Y-%m-%d").date()
+                
+                event_date = datetime.strptime(start_date[:10], "%Y-%m-%d").date()
                 return event_date >= today
             except Exception:
                 return False
@@ -209,17 +282,3 @@ def get_events():
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-#optimal time to buy tickets
-# wait this many days to buy
-# predicted lowest price
-# venue of field like what city or stadium
-# time of event
-# day of week
-# rival? if theyre also in teh AL west
-# calendar with all the mariners games
-# u click on a game and it runs the model for that
-# then it shows all the aformetioned stuff
-# make a readme
-# make a requirements.txt

@@ -6,7 +6,7 @@
 </head>
 <body>
     <h1 style="margin-bottom: 24px;">🎟️ Ticket Timing Predictor</h1>
-    <div id="output" style="display:none; max-width: 800px; margin: 0 auto 24px auto; background: #fff2; border-radius: 12px; box-shadow: 0 2px 12px #0002; padding: 24px;"></div>
+    <div id="output" style="display:none; max-width: 900px; margin: 0 auto 24px auto; background: #fff2; border-radius: 12px; box-shadow: 0 2px 12px #0002; padding: 24px;"></div>
     <div id="events" style="max-width: 900px; margin: 0 auto;"></div>
 
     <script>
@@ -60,7 +60,7 @@
                     eventsDiv.innerText = "No upcoming events found.";
                     return;
                 }
-                eventsDiv.innerHTML = `<h2 style="margin-bottom: 18px;">Upcoming Events</h2>` + events.map(ev => {
+                eventsDiv.innerHTML = events.map(ev => {
                     let html = `<div class='event-card' style="border:1px solid #bbb; margin:18px 0; padding:18px; background:#fff; border-radius:14px; box-shadow:0 2px 8px #0001;">`;
                     html += `<h3 style='margin-bottom:10px; color:#222;'>${ev.event_name || "Unnamed Event"}</h3>`;
                     if (ev.image) html += `<img src="${ev.image}" alt="event image" style="max-width:180px; margin-bottom:10px; border-radius:8px;"><br>`;
@@ -113,117 +113,110 @@
                     outputDiv.innerText = "Error: " + data.error;
                     return;
                 }
+                
                 // Calculate countdowns
                 const today = new Date();
                 const eventDateObj = new Date(data.event_date);
+                
                 // Overall buy day countdown
                 let buyDayOverall = new Date(eventDateObj);
-                buyDayOverall.setDate(eventDateObj.getDate() - data.buy_days_overall);
+                buyDayOverall.setDate(eventDateObj.getDate() - (data.buy_days_overall || 0));
                 let daysUntilBuyOverall = Math.ceil((buyDayOverall - today) / (1000 * 60 * 60 * 24));
 
-                // Section-wise output
-                let sectionTable = `<table border='1' style='border-collapse:collapse; margin-top:10px;'>
-                  <tr><th>Section</th><th>Predicted Price</th><th>Buy If Price ≤</th><th>Buy Days In Advance</th><th>Countdown to Buy Day</th></tr>`;
-                for (const section in data.predicted_price_by_section) {
-                  const predPrice = data.predicted_price_by_section[section];
-                  const buyRange = data.buy_price_by_section[section];
-                  const buyDays = data.buy_days_by_section[section];
-                  // Calculate countdown for this section
-                  let buyDaySection = new Date(eventDateObj);
-                  buyDaySection.setDate(eventDateObj.getDate() - buyDays);
-                  let daysUntilBuySection = Math.ceil((buyDaySection - today) / (1000 * 60 * 60 * 24));
-                  sectionTable += `<tr>
-                    <td>${section}</td>
-                    <td>$${predPrice !== null ? predPrice : 'N/A'}</td>
-                    <td>$${buyRange ? buyRange[1] : 'N/A'}</td>
-                    <td>${buyDays !== undefined ? buyDays : 'N/A'}</td>
-                    <td>${daysUntilBuySection >= 0 ? daysUntilBuySection + ' days' : 'Passed'}</td>
-                  </tr>`;
+                // Determine recommendation color
+                let recommendationColor = '#38a169'; // green
+                if (data.recommendation && data.recommendation.toLowerCase().includes('wait')) {
+                    recommendationColor = '#dd6b20'; // orange
+                } else if (data.recommendation && data.recommendation.toLowerCase().includes('avoid')) {
+                    recommendationColor = '#e53e3e'; // red
                 }
-                sectionTable += `</table>`;
 
                 outputDiv.style.display = "block";
                 outputDiv.innerHTML = `
-                  <div style="background:#fff; border-radius:18px; box-shadow:0 2px 16px #0002; padding:36px 32px; max-width:750px; margin:40px auto; border:1px solid #e0e4f6;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; border-bottom:1px solid #e0e4f6; padding-bottom:16px;">
-                      <div>
-                        <h2 style="margin:0; color:#2a3d66; font-size:2.1em; font-weight:700;">${data.event}</h2>
-                        <div style="font-size:1.1em; color:#4b6cb7; margin-top:8px;"><b>Date:</b> ${data.event_date}</div>
-                      </div>
-                      <div>
-                        <button id="backHomeBtn" style="padding:10px 24px; background:#4b6cb7; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:1em; font-weight:600; box-shadow:0 2px 8px #4b6cb755;">Back to Home</button>
-                      </div>
+                  <div style="background:#fff; border-radius:18px; box-shadow:0 2px 16px #0002; padding:36px 32px; max-width:850px; margin:0 auto; border:1px solid #e0e4f6;">
+                    <div style="text-align:center; margin-bottom:24px; border-bottom:1px solid #e0e4f6; padding-bottom:16px;">
+                      <h2 style="margin:0; color:#2a3d66; font-size:2.1em; font-weight:700;">${data.event || eventName}</h2>
+                      <div style="font-size:1.3em; color:#4b6cb7; margin-top:12px; margin-bottom:16px;"><b>Date:</b> ${data.event_date || eventDate}</div>
                     </div>
-                    <div style="margin-bottom:24px; color:#333; font-size:1.08em;">
-                      <b>Details:</b> <span style="color:#555;">${Object.entries(data.event_details || {}).map(([k, v]) => `<span style='margin-right:18px;'><b>${k}:</b> ${v}</span>`).join('')}</span>
+                    
+                    <div style="margin-bottom:24px; color:#333; font-size:1.08em; text-align:center;">
+                      <b>Details:</b> <span style="color:#555;">${Object.entries(data.event_details || {}).map(([k, v]) => `<span style='margin-right:18px;'><b>${k}:</b> ${v || 'N/A'}</span>`).join('')}</span>
                     </div>
-                    <div style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:32px;">
+                    
+                    <div style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:24px;">
                       <div style="flex:1; min-width:220px; background:#f4f7fd; border-radius:12px; padding:22px; box-shadow:0 1px 6px #0001;">
-                        <h3 style="margin-top:0; color:#2a3d66; font-size:1.15em; font-weight:600; display:flex; align-items:center;"><span style='margin-right:8px;'>🎯</span>Prediction</h3>
-                        <div style="margin-bottom:10px;"><b>Probability optimal:</b> <span style="color:#4b6cb7; font-weight:600;">${data.optimal_probability}</span></div>
-                        <div style="margin-bottom:10px;"><b>Predicted price:</b> <span style="color:#2a3d66; font-weight:600;">$${data.predicted_price}</span></div>
-                        <div><b>Recommendation:</b> <span style="color:${data.recommendation_code}; font-weight:600;">${data.recommendation}</span></div>
+                        <h3 style="margin-top:0; color:#2a3d66; font-size:1.15em; font-weight:600; display:flex; align-items:center; justify-content:center;"><span style='margin-right:8px;'>🎯</span>Prediction</h3>
+                        <div style="margin-bottom:10px; text-align:center;"><b>Probability optimal:</b> <span style="color:#4b6cb7; font-weight:600;">${data.optimal_probability || 'N/A'}</span></div>
+                        <div style="margin-bottom:10px; text-align:center;"><b>Predicted price:</b> <span style="color:#2a3d66; font-weight:600;">$${data.predicted_price || 'N/A'}</span></div>
+                        <div style="text-align:center;"><b>Recommendation:</b> <span style="color:${recommendationColor}; font-weight:600;">${data.recommendation || 'N/A'}</span></div>
                       </div>
                       <div style="flex:1; min-width:220px; background:#f4f7fd; border-radius:12px; padding:22px; box-shadow:0 1px 6px #0001;">
-                        <h3 style="margin-top:0; color:#2a3d66; font-size:1.15em; font-weight:600; display:flex; align-items:center;"><span style='margin-right:8px;'>⏱️</span>Timing Analysis</h3>
-                        <div style="margin-bottom:10px;"><b>Overall Buy Days In Advance:</b> <span style="color:#4b6cb7; font-weight:600;">${data.buy_days_overall} days</span></div>
-                        <div style="margin-bottom:10px;"><b>Countdown to Overall Buy Day:</b> <span style="color:#2a3d66; font-weight:600;">${daysUntilBuyOverall >= 0 ? daysUntilBuyOverall + ' days' : 'Passed'}</span></div>
+                        <h3 style="margin-top:0; color:#2a3d66; font-size:1.15em; font-weight:600; display:flex; align-items:center; justify-content:center;"><span style='margin-right:8px;'>⏱️</span>Timing Analysis</h3>
+                        <div style="margin-bottom:10px; text-align:center;"><b>Overall Optimal Buy Days:</b> <span style="color:#4b6cb7; font-weight:600;">${data.buy_days_overall || 'N/A'} days before event</span></div>
+                        <div style="margin-bottom:10px; text-align:center;"><b>Upcoming Optimal Time to Buy:</b> <span style="color:#2a3d66; font-weight:600;">${daysUntilBuyOverall >= 0 ? daysUntilBuyOverall + ' days from now' : 'Optimal time has passed'}</span></div>
                       </div>
                     </div>
-                    <div style="margin-bottom:32px;">
-                      <h3 style="color:#2a3d66; font-size:1.13em; font-weight:600; margin-bottom:10px;">Section-wise Prediction</h3>
+                    
+                    <div style="margin-bottom:24px;">
+                      <h3 style="color:#2a3d66; font-size:1.4em; font-weight:600; margin-bottom:16px; text-align:center;">Section-wise Prediction</h3>
                       <div style="overflow-x:auto;">
-                        <table border='0' style='border-collapse:collapse; width:100%; background:#fff; box-shadow:0 1px 6px #0001; border-radius:8px; overflow:hidden; font-size:1em;">
+                        <table border='0' style='border-collapse:collapse; width:100%; background:#fff; box-shadow:0 1px 6px #0001; border-radius:8px; overflow:hidden; font-size:1em;'>
                           <thead style="background:#f4f7fd;">
                             <tr style="color:#2a3d66; font-weight:700;">
-                              <th style="padding:10px 8px;">Section</th>
-                              <th style="padding:10px 8px;">Predicted Price</th>
-                              <th style="padding:10px 8px;">Buy If Price ≤</th>
-                              <th style="padding:10px 8px;">Buy Days In Advance</th>
-                              <th style="padding:10px 8px;">Countdown to Buy Day</th>
+                              <th style="padding:12px 8px; text-align:left;">Section</th>
+                              <th style="padding:12px 8px; text-align:center;">Predicted Price</th>
+                              <th style="padding:12px 8px; text-align:center;">Buy If Price ≤</th>
+                              <th style="padding:12px 8px; text-align:center;">Absolute Optimal Time to Buy</th>
+                              <th style="padding:12px 8px; text-align:center;">Upcoming Optimal Time</th>
                             </tr>
                           </thead>
                           <tbody>
-                            ${Object.keys(data.predicted_price_by_section).map(section => {
+                            ${Object.keys(data.predicted_price_by_section || {}).map(section => {
                               const predPrice = data.predicted_price_by_section[section];
-                              const buyRange = data.buy_price_by_section[section];
-                              const buyDays = data.buy_days_by_section[section];
-                              let buyDaySection = new Date(data.event_date);
-                              buyDaySection.setDate(buyDaySection.getDate() - buyDays);
+                              const buyRange = data.buy_price_by_section && data.buy_price_by_section[section];
+                              const buyDays = data.buy_days_by_section && data.buy_days_by_section[section];
+                              let buyDaySection = new Date(data.event_date || eventDate);
+                              buyDaySection.setDate(buyDaySection.getDate() - (buyDays || 0));
                               let daysUntilBuySection = Math.ceil((buyDaySection - new Date()) / (1000 * 60 * 60 * 24));
-                              return `<tr style="text-align:center;">
-                                <td style="padding:8px;">${section}</td>
-                                <td style="padding:8px; color:#2a3d66; font-weight:600;">$${predPrice !== null ? predPrice : 'N/A'}</td>
-                                <td style="padding:8px; color:#4b6cb7; font-weight:600;">$${buyRange ? buyRange[1] : 'N/A'}</td>
-                                <td style="padding:8px;">${buyDays !== undefined ? buyDays : 'N/A'}</td>
-                                <td style="padding:8px; color:${daysUntilBuySection >= 0 ? '#2a3d66' : '#b74b4b'}; font-weight:600;">${daysUntilBuySection >= 0 ? daysUntilBuySection + ' days' : 'Passed'}</td>
+                              return `<tr style="border-bottom:1px solid #f0f0f0;">
+                                <td style="padding:12px 8px; font-weight:600;">${section}</td>
+                                <td style="padding:12px 8px; text-align:center; color:#2a3d66; font-weight:600;">$${predPrice !== null && predPrice !== undefined ? predPrice.toFixed(2) : 'N/A'}</td>
+                                <td style="padding:12px 8px; text-align:center; color:#4b6cb7; font-weight:600;">$${buyRange && buyRange[1] ? buyRange[1].toFixed(2) : 'N/A'}</td>
+                                <td style="padding:12px 8px; text-align:center;">${buyDays !== undefined ? buyDays + ' days in advance' : 'N/A'}</td>
+                                <td style="padding:12px 8px; text-align:center; color:${daysUntilBuySection >= 0 ? '#2a3d66' : '#b74b4b'}; font-weight:600;">${daysUntilBuySection >= 0 ? daysUntilBuySection + ' days from now' : 'Optimal time has passed'}</td>
                               </tr>`;
                             }).join('')}
                           </tbody>
                         </table>
                       </div>
                     </div>
-                    <div style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:16px;">
+                    
+                    <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:24px;">
                       <div style="flex:1; min-width:220px; background:#f4f7fd; border-radius:12px; padding:22px; box-shadow:0 1px 6px #0001;">
-                        <h3 style="margin-top:0; color:#2a3d66; font-size:1.13em; font-weight:600; display:flex; align-items:center;"><span style='margin-right:8px;'>🧠</span>Feature Importance</h3>
-                        <div style="color:#333;">${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.map(f => `<span style='margin-right:10px;'>${f}</span>`).join('') : 'N/A'}</div>
+                        <h3 style="margin-top:0; color:#2a3d66; font-size:1.13em; font-weight:600; display:flex; align-items:center; justify-content:center;"><span style='margin-right:8px;'>🧠</span>Feature Importance</h3>
+                        <div style="color:#333; text-align:center;">${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.map(f => `<span style='margin-right:10px; color:#4b6cb7; font-weight:600;'>${f}</span>`).join('') : 'N/A'}</div>
                       </div>
                       <div style="flex:1; min-width:220px; background:#f4f7fd; border-radius:12px; padding:22px; box-shadow:0 1px 6px #0001;">
-                        <h3 style="margin-top:0; color:#2a3d66; font-size:1.13em; font-weight:600; display:flex; align-items:center;"><span style='margin-right:8px;'>🔎</span>Summary Insights</h3>
-                        <div style="margin-bottom:10px;"><b>Price range:</b> <span style="color:#2a3d66; font-weight:600;">$${data.price_range[0]} - $${data.price_range[1]}</span></div>
-                        <div><b>Key factors:</b> <span style="color:#4b6cb7; font-weight:600;">${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.join(', ') : 'N/A'}</span></div>
+                        <h3 style="margin-top:0; color:#2a3d66; font-size:1.13em; font-weight:600; display:flex; align-items:center; justify-content:center;"><span style='margin-right:8px;'>🔎</span>Summary Insights</h3>
+                        <div style="margin-bottom:10px; text-align:center;"><b>Price range:</b> <span style="color:#2a3d66; font-weight:600;">$${data.price_range && data.price_range[0] ? data.price_range[0].toFixed(2) : 'N/A'} - $${data.price_range && data.price_range[1] ? data.price_range[1].toFixed(2) : 'N/A'}</span></div>
+                        <div style="text-align:center;"><b>Key factors:</b> <span style="color:#4b6cb7; font-weight:600;">${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.join(', ') : 'N/A'}</span></div>
                       </div>
+                    </div>
+                    
+                    <div style="text-align:center; margin-top:32px; padding-top:24px; border-top:1px solid #e0e4f6;">
+                      <button onclick="backToHome()" style="padding:12px 28px; background:#4b6cb7; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:1.1em; font-weight:600; box-shadow:0 2px 8px #4b6cb755;">Back to Home</button>
                     </div>
                   </div>
                 `;
-                // Add backToHome function
-                window.backToHome = function() {
-                  clearBoxes("events");
-                  getEvents();
-                };
             } catch (err) {
                 outputDiv.innerText = "Request failed: " + err;
             }
+        }
+
+        // Add backToHome function
+        function backToHome() {
+            clearBoxes("events");
+            getEvents();
         }
     </script>
 </body>
