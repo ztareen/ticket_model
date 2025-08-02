@@ -594,51 +594,60 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
             current_days = 15  # Fallback to 15 days for baseball
         
         print(f"Current days until event: {current_days}")
+        # Get consistent timing recommendations
+        average_best_days = float(timing_analysis.get('overall_median_days', 14))
+        average_best_days = max(3, min(25, average_best_days))  # Baseball-specific bounds
         print(f"Average best days: {average_best_days}")
         print(f"Optimal buy date: {current_days - average_best_days} days from now")
-        
-        # Build realistic feature vector for current situation
-        avg_price = float(df['price'].median())
-        avg_quantity = float(df['quantity'].median())
-        
-        # Build feature vector that matches training data
-        feature_cols = optimizer.create_features(df_processed).columns
-        current_features = np.zeros(len(feature_cols))
-        
-        # Set the main features based on current situation
-        if 'days_until_event' in feature_cols:
-            current_features[feature_cols.get_loc('days_until_event')] = current_days
-        if 'price' in feature_cols:
-            current_features[feature_cols.get_loc('price')] = avg_price
-        if 'quantity' in feature_cols:
-            current_features[feature_cols.get_loc('quantity')] = avg_quantity
-        if 'day_of_week' in feature_cols:
-            current_features[feature_cols.get_loc('day_of_week')] = datetime.now().weekday()
-        if 'is_weekend' in feature_cols:
-            current_features[feature_cols.get_loc('is_weekend')] = 1 if datetime.now().weekday() >= 5 else 0
-        if 'month' in feature_cols:
-            current_features[feature_cols.get_loc('month')] = datetime.now().month
-        if 'time_trend' in feature_cols:
-            current_features[feature_cols.get_loc('time_trend')] = current_days / 365
-        if 'price_percentile' in feature_cols:
-            # Estimate current price percentile
-            price_rank = (avg_price - optimizer.price_stats['min']) / (optimizer.price_stats['max'] - optimizer.price_stats['min'] + 1e-6)
-            current_features[feature_cols.get_loc('price_percentile')] = price_rank
-        
-        # FIXED: Get actual probability prediction
+
+        # Use the most recent ticket listing (closest to today, but before the event) for probability prediction
+        df_recent = df[df['days_until_event'] >= 0].copy()
+        if not df_recent.empty:
+            # Find the row with the minimum days_until_event (closest to today)
+            idx = df_recent['days_until_event'].idxmin()
+            recent_row = df_recent.loc[idx]
+            feature_cols = optimizer.create_features(df_processed).columns
+            current_features = np.zeros(len(feature_cols))
+            for i, col in enumerate(feature_cols):
+                if col in recent_row:
+                    current_features[i] = recent_row[col]
+            # Use the actual days_until_event for context
+            current_days_for_prob = int(recent_row['days_until_event'])
+        else:
+            # Fallback to median/average if no recent ticket
+            avg_price = float(df['price'].median())
+            avg_quantity = float(df['quantity'].median())
+            feature_cols = optimizer.create_features(df_processed).columns
+            current_features = np.zeros(len(feature_cols))
+            if 'days_until_event' in feature_cols:
+                current_features[feature_cols.get_loc('days_until_event')] = current_days
+            if 'price' in feature_cols:
+                current_features[feature_cols.get_loc('price')] = avg_price
+            if 'quantity' in feature_cols:
+                current_features[feature_cols.get_loc('quantity')] = avg_quantity
+            if 'day_of_week' in feature_cols:
+                current_features[feature_cols.get_loc('day_of_week')] = datetime.now().weekday()
+            if 'is_weekend' in feature_cols:
+                current_features[feature_cols.get_loc('is_weekend')] = 1 if datetime.now().weekday() >= 5 else 0
+            if 'month' in feature_cols:
+                current_features[feature_cols.get_loc('month')] = datetime.now().month
+            if 'time_trend' in feature_cols:
+                current_features[feature_cols.get_loc('time_trend')] = current_days / 365
+            if 'price_percentile' in feature_cols:
+                price_rank = (avg_price - optimizer.price_stats['min']) / (optimizer.price_stats['max'] - optimizer.price_stats['min'] + 1e-6)
+                current_features[feature_cols.get_loc('price_percentile')] = price_rank
+            current_days_for_prob = current_days
+
+        # Get actual probability prediction using the most recent ticket listing
         optimal_prob, predicted_price = optimizer.predict_optimal_timing(current_features)
-        
+
         print(f"Raw optimal probability: {optimal_prob}")
         print(f"Raw predicted price: {predicted_price}")
 
         # Ensure we have valid values
         optimal_prob = float(optimal_prob) if not pd.isna(optimal_prob) else 0.5
-        predicted_price = float(predicted_price) if not pd.isna(predicted_price) else avg_price
-        
-        # Get consistent timing recommendations
-        average_best_days = float(timing_analysis.get('overall_median_days', 14))
-        average_best_days = max(3, min(25, average_best_days))  # Baseball-specific bounds
-        
+        predicted_price = float(predicted_price) if not pd.isna(predicted_price) else float(df['price'].median())
+
         # Feature importance (top 3)
         if optimizer.feature_importance is not None:
             top_features = optimizer.feature_importance.head(3)['feature'].tolist()
@@ -648,32 +657,32 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
         # Clean up timing data
         timing_by_zone = {}
         timing_by_section = {}
-        
+
         for k, v in timing_analysis.get('by_zone', {}).items():
             if not pd.isna(v):
                 timing_by_zone[str(k)] = round(float(v), 1)
-        
+
         for k, v in timing_analysis.get('by_section', {}).items():
             if not pd.isna(v):
                 timing_by_section[str(k)] = round(float(v), 1)
-        
+
         # Price analysis
         price_stats = timing_analysis.get('price_range_analysis', {})
         price_min = float(price_stats.get('min_price', df['price'].min()))
         price_max = float(price_stats.get('max_price', df['price'].max()))
         price_25th = float(price_stats.get('25th_percentile', df['price'].quantile(0.25)))
         price_75th = float(price_stats.get('75th_percentile', df['price'].quantile(0.75)))
-        
+
         price_range = [round(price_min, 2), round(price_max, 2)]
         buy_price_range = [round(price_25th, 2), round(price_25th * 1.15, 2)]
         predicted_price_range = [round(price_25th, 2), round(price_75th, 2)]
-        
+
         # Section-specific analysis
         price_range_by_section = {}
         buy_price_by_section = {}
         predicted_price_by_section = {}
         buy_days_by_section = timing_by_section.copy()
-        
+
         for section in df['section'].unique():
             section_data = df[df['section'] == section]
             if len(section_data) > 0:
@@ -682,7 +691,7 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
                     section_max = float(section_data['price'].max())
                     section_25th = float(section_data['price'].quantile(0.25))
                     section_median = float(section_data['price'].median())
-                    
+
                     if not any(pd.isna([section_min, section_max, section_25th, section_median])):
                         price_range_by_section[str(section)] = [round(section_min, 2), round(section_max, 2)]
                         buy_price_by_section[str(section)] = [round(section_25th, 2), round(section_25th * 1.15, 2)]
@@ -697,66 +706,20 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
                     buy_price_by_section[str(section)] = buy_price_range
                     predicted_price_by_section[str(section)] = round(price_25th, 2)
 
-        # FIXED: Consistent recommendation logic for baseball games within 30 days
-        recommendation = ''
-        rec_code = 'yellow'
-        
-        # Baseball-specific logic for games within 30 days
-        is_very_close = current_days <= 5  # Very close to game day
-        is_in_optimal_window = 7 <= current_days <= 21  # Typical optimal window for baseball
-        is_good_price_predicted = predicted_price <= price_25th * 1.1
-        days_until_optimal = current_days - average_best_days
-        
-        print(f"Decision factors:")
-        print(f"- Current days: {current_days}")
-        print(f"- Optimal probability: {optimal_prob}")
-        print(f"- Is very close: {is_very_close}")
-        print(f"- Is in optimal window: {is_in_optimal_window}")
-        print(f"- Is good price predicted: {is_good_price_predicted}")
-        print(f"- Average best days: {average_best_days}")
-        print(f"- Days until optimal: {days_until_optimal}")
-
-        if optimal_prob >= 0.6:  # High confidence
-            recommendation = 'We recommend buying now - excellent opportunity!'
+        # --- Recommendation logic based on optimal buy days ---
+        days_until_optimal = int(round(current_days - average_best_days))
+        if days_until_optimal > 1:
+            recommendation = f"We do not recommend buying right now. You should buy in {days_until_optimal} days."
+            rec_code = 'yellow'
+        elif days_until_optimal == 1:
+            recommendation = "We do not recommend buying right now. You should buy tomorrow."
+            rec_code = 'yellow'
+        elif days_until_optimal == 0:
+            recommendation = "Now is the optimal time to buy."
             rec_code = 'green'
-        elif optimal_prob >= 0.4:  # Moderate-high confidence
-            if is_good_price_predicted:
-                recommendation = 'We recommend buying now - good prices available!'
-                rec_code = 'green'
-            elif is_very_close:
-                recommendation = 'We recommend buying now - game is very soon!'
-                rec_code = 'green'
-            else:
-                recommendation = 'We recommend buying now'
-                rec_code = 'green'
-        elif optimal_prob >= 0.25:  # Moderate confidence
-            if is_very_close:
-                recommendation = 'We recommend buying now - limited time remaining!'
-                rec_code = 'yellow'
-            elif is_in_optimal_window:
-                recommendation = 'We recommend buying now - in optimal window'
-                rec_code = 'yellow'
-            elif days_until_optimal > 0:
-                recommendation = f'We recommend waiting {int(days_until_optimal)} more days'
-                rec_code = 'yellow'
-            else:
-                recommendation = 'We recommend buying now - optimal time has passed'
-                rec_code = 'yellow'
-        else:  # Lower confidence
-            if is_very_close:
-                recommendation = 'We recommend buying now - game is very soon!'
-                rec_code = 'yellow'
-            elif days_until_optimal <= 0:
-                recommendation = 'We recommend buying now - optimal time has passed'
-                rec_code = 'yellow'
-            else:
-                wait_days = min(7, int(days_until_optimal))
-                if wait_days > 0:
-                    recommendation = f'We recommend waiting {wait_days} more days'
-                    rec_code = 'yellow'
-                else:
-                    recommendation = 'We recommend buying now'
-                    rec_code = 'yellow'
+        else:  # days_until_optimal < 0
+            recommendation = "Optimal time has passed. Buy as soon as possible."
+            rec_code = 'yellow'
 
         # Event details
         event_details = {}
@@ -764,7 +727,7 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
             if col in df.columns:
                 event_details[col] = str(df.iloc[0][col])
 
-        # FIXED: Probability context that's informative
+        # Probability context
         prob_percentage = int(optimal_prob * 100)
         prob_context = (
             f"Based on historical data analysis, current market conditions suggest a {prob_percentage}% "
@@ -804,7 +767,7 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
     except Exception as e:
         # Return a fallback result if model training fails
         print(f"Warning: Model training failed for {target_game}: {str(e)}")
-        
+
         # Calculate current days for fallback
         try:
             from datetime import datetime
@@ -814,7 +777,7 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
             current_days = max(1, min(30, current_days))
         except:
             current_days = 15
-        
+
         # Try to get basic price information from the data file
         try:
             df_basic = pd.read_csv(seat_data_path)
@@ -831,21 +794,27 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
                 price_min, price_max, price_median, price_25th = 50.0, 200.0, 100.0, 75.0
         except:
             price_min, price_max, price_median, price_25th = 50.0, 200.0, 100.0, 75.0
-        
-        # Baseball-specific fallback recommendations
-        if current_days <= 5:
-            recommendation = 'We recommend buying now - game is very soon!'
-            rec_code = 'green'
-            optimal_prob = 0.7
-        elif current_days <= 14:
-            recommendation = 'We recommend buying now - in optimal window for baseball'
-            rec_code = 'yellow'
-            optimal_prob = 0.6
-        else:
-            recommendation = f'We recommend waiting {max(1, 14 - current_days)} more days'
+
+        # Fallback optimal days
+        average_best_days = 14.0
+        days_until_optimal = int(round(current_days - average_best_days))
+        if days_until_optimal > 1:
+            recommendation = f"We do not recommend buying right now. You should buy in {days_until_optimal} days."
             rec_code = 'yellow'
             optimal_prob = 0.4
-        
+        elif days_until_optimal == 1:
+            recommendation = "We do not recommend buying right now. You should buy tomorrow."
+            rec_code = 'yellow'
+            optimal_prob = 0.5
+        elif days_until_optimal == 0:
+            recommendation = "Now is the optimal time to buy."
+            rec_code = 'green'
+            optimal_prob = 0.7
+        else:  # days_until_optimal < 0
+            recommendation = "Optimal time has passed. Buy as soon as possible."
+            rec_code = 'yellow'
+            optimal_prob = 0.6
+
         return {
             'event': target_game,
             'event_date': target_date,
@@ -854,10 +823,10 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
             'probability_context': f"Limited data available. Using baseball-specific timing patterns for games {current_days} days away.",
             'predicted_price': round(price_median, 2),
             'predicted_price_range': [round(price_25th, 2), round(price_max, 2)],
-            'average_best_days': 14.0,
-            'buy_days_overall': 14.0,  # Add this for frontend compatibility
+            'average_best_days': average_best_days,
+            'buy_days_overall': average_best_days,  # Add this for frontend compatibility
             'feature_importance': ['days_until_event', 'price', 'quantity'],
-            'timing_analysis': {'overall_median_days': 14.0},
+            'timing_analysis': {'overall_median_days': average_best_days},
             'timing_by_zone': {},
             'timing_by_section': {},
             'price_range': [round(price_min, 2), round(price_max, 2)],

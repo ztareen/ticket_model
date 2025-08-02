@@ -120,26 +120,70 @@ def run_script():
             predicted_price_by_section = {}
             buy_price_by_section = {}
             buy_days_by_section = {}
-            if 'section' in df.columns and 'optimal_days_before' in df_with_optimal.columns:
-                section_group = df_with_optimal.groupby('section')['optimal_days_before'].mean()
-                # Remove NaN values from groupby result
-                section_group = section_group.dropna()
-                timing_by_section = {str(k): round(float(v), 2) for k, v in section_group.items()}
-                buy_days_by_section = timing_by_section.copy()
-                # Predicted price by section: use mean price per section
-                price_group = df.groupby('section')['price'].mean()
-                predicted_price_by_section = {str(k): round(float(v), 2) for k, v in price_group.items()}
-                # Buy price by section: use quantiles per section
-                for section, group in df.groupby('section'):
-                    buy_low = round(float(group['price'].quantile(0.10)), 2)
-                    buy_high = round(float(group['price'].quantile(0.30)), 2)
-                    buy_price_by_section[str(section)] = [buy_low, buy_high]
-            else:
-                # Fallback: if columns missing, set None for each section
-                if 'section' in df.columns:
-                    buy_days_by_section = {str(k): None for k in df['section'].unique()}
+            if 'section' in df.columns:
+                # --- Group sections into broader categories ---
+                def section_group_label(section):
+                    s = str(section).lower()
+                    if s.startswith('club'):
+                        return 'Club'
+                    if s.startswith('suite'):
+                        return 'Suite'
+                    if s.startswith('diamond'):
+                        return 'Diamond'
+                    if s.startswith('main'):
+                        return 'Main'
+                    if s.startswith('terrace'):
+                        return 'Terrace'
+                    if s.startswith('view'):
+                        return 'View'
+                    if s.startswith('bleacher'):
+                        return 'Bleacher'
+                    if s.startswith('loge'):
+                        return 'Loge'
+                    # Group by hundreds (e.g., 100s, 200s, etc.)
+                    if s and s[0].isdigit():
+                        return s[0] + '00s'
+                    return s.capitalize()
+
+                df['section_group'] = df['section'].apply(section_group_label)
+                section_groups = list(df['section_group'].unique())
+
+                # Section-group-wise optimal days
+                timing_by_section = {}
+                buy_days_by_section = {}
+                if 'by_section' in timing_analysis and timing_analysis['by_section']:
+                    # Map original section timing to group timing by median
+                    group_to_days = {}
+                    for group in section_groups:
+                        # Get all original sections in this group
+                        orig_sections = [sec for sec in timing_analysis['by_section'] if section_group_label(sec) == group]
+                        vals = [timing_analysis['by_section'][sec] for sec in orig_sections if timing_analysis['by_section'][sec] is not None and not (isinstance(timing_analysis['by_section'][sec], float) and (timing_analysis['by_section'][sec] != timing_analysis['by_section'][sec]))]
+                        if vals:
+                            group_to_days[group] = round(float(np.median(vals)), 2)
+                        else:
+                            group_to_days[group] = round(average_best_days, 2)
+                    for group in section_groups:
+                        timing_by_section[group] = group_to_days[group]
+                        buy_days_by_section[group] = group_to_days[group]
                 else:
-                    buy_days_by_section = {}
+                    for group in section_groups:
+                        timing_by_section[group] = round(average_best_days, 2)
+                        buy_days_by_section[group] = round(average_best_days, 2)
+
+                # Predicted price by section group: use mean price per group
+                price_group = df.groupby('section_group')['price'].mean()
+                predicted_price_by_section = {str(k): round(float(v), 2) for k, v in price_group.items()}
+                # Buy price by section group: use quantiles per group
+                buy_price_by_section = {}
+                for group, group_df in df.groupby('section_group'):
+                    buy_low = round(float(group_df['price'].quantile(0.10)), 2)
+                    buy_high = round(float(group_df['price'].quantile(0.30)), 2)
+                    buy_price_by_section[str(group)] = [buy_low, buy_high]
+            else:
+                timing_by_section = {}
+                predicted_price_by_section = {}
+                buy_price_by_section = {}
+                buy_days_by_section = {}
             price_min = float(df['price'].min())
             price_max = float(df['price'].max())
             price_range = [round(price_min, 2), round(price_max, 2)]
@@ -158,6 +202,15 @@ def run_script():
             # Calculate if optimal time has passed
             current_days_until_event = current_features[0] if len(current_features) > 0 else 30
             optimal_time_has_passed = current_days_until_event > average_best_days
+
+            # Calculate upcoming optimal time for each section
+            upcoming_optimal_time_by_section = {}
+            for section in buy_days_by_section:
+                try:
+                    days_until_optimal = int(round(buy_days_by_section[section] - current_days_until_event))
+                    upcoming_optimal_time_by_section[section] = max(0, days_until_optimal)
+                except Exception:
+                    upcoming_optimal_time_by_section[section] = None
             
             if optimal_time_has_passed:
                 # If optimal time has passed, adjust recommendation based on how far past we are
@@ -211,7 +264,8 @@ def run_script():
                 'recommendation_code': rec_code,
                 'predicted_price_by_section': predicted_price_by_section,
                 'buy_price_by_section': buy_price_by_section,
-                'buy_days_by_section': buy_days_by_section
+                'buy_days_by_section': buy_days_by_section,
+                'upcoming_optimal_time_by_section': upcoming_optimal_time_by_section
             })
         else:
             # Fallback to default model if no event_name/date provided
