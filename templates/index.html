@@ -123,15 +123,31 @@
                 buyDayOverall.setDate(eventDateObj.getDate() - (data.buy_days_overall || 0));
                 let daysUntilBuyOverall = Math.ceil((buyDayOverall - today) / (1000 * 60 * 60 * 24));
 
-                // Determine recommendation color for new three-output logic
+                // Color coordination for all backend recommendation messages
                 let recommendationColor = '#38a169'; // default green
                 if (data.recommendation) {
                     const rec = data.recommendation.toLowerCase();
-                    if (rec.includes('no, do not buy')) {
+                    if (
+                        rec.includes('not purchasing at all') ||
+                        rec.includes('no, do not buy')
+                    ) {
                         recommendationColor = '#e53e3e'; // red
-                    } else if (rec.includes('buy if you really want')) {
-                        recommendationColor = '#dd6b20'; // yellow/orange
-                    } else if (rec.includes('yes, buy now')) {
+                    } else if (
+                        rec.includes('buy if you really want') ||
+                        rec.includes('waiting') ||
+                        rec.includes('do not recommend buying right now')
+                    ) {
+                        recommendationColor = '#4b6cb7'; // blue
+                    } else if (
+                        rec.includes('optimal time has passed') ||
+                        rec.includes('optimal time recently passed') ||
+                        rec.includes('prices may be higher')
+                    ) {
+                        recommendationColor = '#eab308'; // amber/yellow
+                    } else if (
+                        rec.includes('buy now') ||
+                        rec.includes('now is the optimal time to buy')
+                    ) {
                         recommendationColor = '#38a169'; // green
                     }
                 }
@@ -152,13 +168,14 @@
                       <div style="flex:1; min-width:220px; background:#f4f7fd; border-radius:12px; padding:22px; box-shadow:0 1px 6px #0001;">
                         <h3 style="margin-top:0; color:#2a3d66; font-size:1.15em; font-weight:600; display:flex; align-items:center; justify-content:center;"><span style='margin-right:8px;'>🎯</span>Prediction</h3>
                         <div style="margin-bottom:10px; text-align:center;"><b>Probability optimal:</b> <span style="color:#4b6cb7; font-weight:600;">${data.optimal_probability || 'N/A'}</span></div>
-                        <div style="margin-bottom:10px; text-align:center;"><b>Predicted price:</b> <span style="color:#2a3d66; font-weight:600;">$${data.predicted_price || 'N/A'}</span></div>
+                        <div style="margin-bottom:10px; text-align:center;"><b>Predicted price range:</b> <span style="color:#2a3d66; font-weight:600;">$${data.predicted_price_range && data.predicted_price_range[0] !== undefined ? data.predicted_price_range[0].toFixed(2) : 'N/A'} - $${data.predicted_price_range && data.predicted_price_range[1] !== undefined ? data.predicted_price_range[1].toFixed(2) : 'N/A'}</span></div>
+                        <div style="margin-bottom:10px; text-align:center;"><b>Buy if price ≤</b> <span style="color:#4b6cb7; font-weight:600;">$${data.buy_price_range && data.buy_price_range[1] !== undefined ? data.buy_price_range[1].toFixed(2) : 'N/A'}</span></div>
                         <div style="text-align:center;"><b>Recommendation:</b> <span style="color:${recommendationColor}; font-weight:600;">${data.recommendation || 'N/A'}</span></div>
                       </div>
                       <div style="flex:1; min-width:220px; background:#f4f7fd; border-radius:12px; padding:22px; box-shadow:0 1px 6px #0001;">
                         <h3 style="margin-top:0; color:#2a3d66; font-size:1.15em; font-weight:600; display:flex; align-items:center; justify-content:center;"><span style='margin-right:8px;'>⏱️</span>Timing Analysis</h3>
                         <div style="margin-bottom:10px; text-align:center;"><b>Overall Optimal Buy Days:</b> <span style="color:#4b6cb7; font-weight:600;">${data.buy_days_overall || 'N/A'} days before event</span></div>
-                        <div style="margin-bottom:10px; text-align:center;"><b>Upcoming Optimal Time to Buy (If you are absolutely set on going):</b> <span style="color:#2a3d66; font-weight:600;">${daysUntilBuyOverall >= 0 ? daysUntilBuyOverall + ' days from now' : 'Optimal time has passed'}</span></div>
+                        <div style="margin-bottom:10px; text-align:center;"><b>Upcoming Optimal Time to Buy (If you are absolutely set on going):</b> <span style="color:#2a3d66; font-weight:600;">${Math.max(0, daysUntilBuyOverall) === 0 ? 'today' : Math.max(0, daysUntilBuyOverall) + ' days from now'}</span></div>
                       </div>
                     </div>
                     
@@ -188,7 +205,7 @@
                                 <td style="padding:12px 8px; text-align:center; color:#2a3d66; font-weight:600;">$${predPrice !== null && predPrice !== undefined ? predPrice.toFixed(2) : 'N/A'}</td>
                                 <td style="padding:12px 8px; text-align:center; color:#4b6cb7; font-weight:600;">$${buyRange && buyRange[1] ? buyRange[1].toFixed(2) : 'N/A'}</td>
                                 <td style="padding:12px 8px; text-align:center;">${buyDays !== undefined ? buyDays + ' days in advance' : 'N/A'}</td>
-                                <td style="padding:12px 8px; text-align:center; color:${daysUntilBuySection >= 0 ? '#2a3d66' : '#b74b4b'}; font-weight:600;">${daysUntilBuySection >= 0 ? daysUntilBuySection + ' days from now' : 'Optimal time has passed'}</td>
+                                <td style="padding:12px 8px; text-align:center; color:#2a3d66; font-weight:600;">${Math.max(0, daysUntilBuySection) === 0 ? 'today' : Math.max(0, daysUntilBuySection) + ' days from now'}</td>
                               </tr>`;
                             }).join('')}
                           </tbody>

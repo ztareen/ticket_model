@@ -3,7 +3,7 @@ from ticket_model import run_ticket_model
 from flask_cors import CORS
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from ticketmaster_eventgetter import event_info
 
 app = Flask(__name__)
@@ -99,13 +99,19 @@ def run_script():
             if len(current_features) < n_features:
                 current_features = np.concatenate([current_features, np.zeros(n_features - len(current_features))])
             optimal_prob, predicted_price = optimizer.predict_optimal_timing(current_features)
-            # Ensure optimal_prob is always a valid float between 0 and 1
+            # Ensure optimal_prob is always a valid float between 0 and 1, never NaN or None
             try:
                 optimal_prob = float(optimal_prob)
-                if not (0.0 <= optimal_prob <= 1.0) or (optimal_prob is None) or (optimal_prob != optimal_prob):
-                    optimal_prob = 0.0
+                if optimal_prob is None or not (0.0 <= optimal_prob <= 1.0) or (isinstance(optimal_prob, float) and (optimal_prob != optimal_prob)):
+                    optimal_prob = 0.5
             except Exception:
-                optimal_prob = 0.0
+                optimal_prob = 0.5
+            # Add descriptor for optimal_probability
+            optimal_probability_descriptor = (
+                "This is the estimated probability (0 to 1) that buying now is the optimal time. "
+                "A value close to 1 means it's likely the best time to buy, while a value near 0 means it's likely better to wait. "
+                "This is based on historical price trends, timing, and current market data."
+            )
             try:
                 predicted_price = float(predicted_price)
             except Exception:
@@ -203,14 +209,17 @@ def run_script():
             current_days_until_event = current_features[0] if len(current_features) > 0 else 30
             optimal_time_has_passed = current_days_until_event > average_best_days
 
-            # Calculate upcoming optimal time for each section
+            # Calculate upcoming optimal time for each section group
             upcoming_optimal_time_by_section = {}
-            for section in buy_days_by_section:
+            for group in buy_days_by_section:
                 try:
-                    days_until_optimal = int(round(buy_days_by_section[section] - current_days_until_event))
-                    upcoming_optimal_time_by_section[section] = max(0, days_until_optimal)
+                    days_until_event = int(round(current_days_until_event))
+                    optimal_buy_day = int(round(buy_days_by_section[group]))
+                    # Always output a number: days from now to optimal (never negative, never after event)
+                    days_to_optimal = max(0, min(days_until_event, optimal_buy_day))
+                    upcoming_optimal_time_by_section[group] = days_to_optimal
                 except Exception:
-                    upcoming_optimal_time_by_section[section] = None
+                    upcoming_optimal_time_by_section[group] = 0
             
             if optimal_time_has_passed:
                 # If optimal time has passed, adjust recommendation based on how far past we are
@@ -240,24 +249,41 @@ def run_script():
                 for col in ['venue_id', 'segment', 'genre', 'ticket_status']:
                     if col in df.columns:
                         event_details[col] = str(df.iloc[0][col])
-            prob_context = (
-                "This is the estimated probability that buying now is the optimal time. "
-                "A value close to 1 means it's likely the best time to buy, while a value near 0 means it's likely better to wait."
-            )
-            return jsonify({
+            prob_context = optimal_probability_descriptor
+            # Ensure price_range and feature_importance are always present and well-formed
+            # Calculate a recommended buy window (range of dates)
+            event_dt = None
+            try:
+                event_dt = datetime.strptime(event_date, '%Y-%m-%d')
+            except Exception:
+                event_dt = None
+            buy_days_low = int(round(average_best_days)) if 'average_best_days' in locals() else 10
+            buy_days_high = int(round(average_best_days)) if 'average_best_days' in locals() else 20
+            if event_dt:
+                buy_window_start = (event_dt - timedelta(days=buy_days_high)).strftime('%Y-%m-%d')
+                buy_window_end = (event_dt - timedelta(days=buy_days_low)).strftime('%Y-%m-%d')
+                buy_window = {'start_date': buy_window_start, 'end_date': buy_window_end, 'days_before_event': [buy_days_high, buy_days_low]}
+            else:
+                buy_window = {'start_date': None, 'end_date': None, 'days_before_event': [buy_days_high, buy_days_low]}
+
+            # Add more relevant statistics from ticket_model
+            timing_analysis = timing_analysis if 'timing_analysis' in locals() else {}
+            response = {
                 'event': event_name,
                 'event_date': event_date,
                 'event_details': event_details,
                 'optimal_probability': round(optimal_prob, 2),
+                'optimal_probability_descriptor': optimal_probability_descriptor,
                 'probability_context': prob_context,
                 'predicted_price': round(predicted_price, 2),
                 'predicted_price_range': predicted_price_range,
                 'average_best_days': round(average_best_days, 2),
                 'buy_days_overall': round(average_best_days, 2),
-                'feature_importance': top_features,
+                'recommended_buy_window': buy_window,
+                'feature_importance': top_features if top_features else [],
                 'timing_by_zone': timing_by_zone,
                 'timing_by_section': timing_by_section,
-                'price_range': price_range,
+                'price_range': price_range if price_range and len(price_range) == 2 else [None, None],
                 'price_range_by_section': price_range_by_section,
                 'buy_price_range': buy_price_range,
                 'recommendation': recommendation,
@@ -265,8 +291,9 @@ def run_script():
                 'predicted_price_by_section': predicted_price_by_section,
                 'buy_price_by_section': buy_price_by_section,
                 'buy_days_by_section': buy_days_by_section,
-                'upcoming_optimal_time_by_section': upcoming_optimal_time_by_section
-            })
+                'timing_analysis': timing_analysis,
+            }
+            return jsonify(response)
         else:
             # Fallback to default model if no event_name/date provided
             result = run_ticket_model()

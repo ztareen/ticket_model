@@ -1,16 +1,17 @@
+
 import csv
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from collections import defaultdict
 import math
-from datetime import datetime, timedelta
 import xgboost as xgb
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import warnings
-from datetime import date
+import datetime
+from datetime import date, timedelta
 warnings.filterwarnings('ignore')
 
 today = date.today()
@@ -770,12 +771,11 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
 
         # Calculate current days for fallback
         try:
-            from datetime import datetime
-            event_date = datetime.strptime(target_date, '%Y-%m-%d')
-            current_date = datetime.now()
-            current_days = (event_date - current_date).days
+            event_date_dt = datetime.datetime.strptime(target_date, '%Y-%m-%d')
+            current_date = datetime.datetime.now()
+            current_days = (event_date_dt - current_date).days
             current_days = max(1, min(30, current_days))
-        except:
+        except Exception:
             current_days = 15
 
         # Try to get basic price information from the data file
