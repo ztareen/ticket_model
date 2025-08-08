@@ -3,6 +3,9 @@
 <head>
     <title>Ticket Timing Predictor</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='frontend.css') }}">
+    <style>
+      body { background: linear-gradient(135deg, #0D1321 0%, #1D2D44 100%); color: #F0EBD8; }
+    </style>
 </head>
 <body>
     <h1>Mariners Ticket Timing Predictor</h1>
@@ -68,7 +71,7 @@
                     if (ev.ticket_status) html += `<b>Ticket Status:</b> ${ev.ticket_status}<br>`;
                     if (ev.public_sale_start) html += `<b>Sale Start:</b> ${ev.public_sale_start}<br>`;
                     if (ev.public_sale_end) html += `<b>Sale End:</b> ${ev.public_sale_end}<br>`;
-                    if (ev.seatmap_url) html += `<b>Seatmap:</b> <a href="${ev.seatmap_url}" target="_blank">View Seatmap</a><br>`;
+                    if (ev.seatmap_url) html += `<a href="${ev.seatmap_url}" target="_blank" class="event-link-btn">View Seatmap</a> `;
                     if (ev.accessibility_info) html += `<b>Accessibility:</b> ${ev.accessibility_info}<br>`;
                     if (ev.ticket_limit) html += `<b>Ticket Limit:</b> ${ev.ticket_limit}<br>`;
                     if (ev.timezone) html += `<b>Timezone:</b> ${ev.timezone}<br>`;
@@ -76,7 +79,7 @@
                     if (ev.segment) html += `<b>Segment:</b> ${ev.segment}<br>`;
                     if (ev.genre) html += `<b>Genre:</b> ${ev.genre}<br>`;
                     if (ev.subGenre) html += `<b>SubGenre:</b> ${ev.subGenre}<br>`;
-                    if (ev.url) html += `<b>Event URL:</b> <a href="${ev.url}" target="_blank">Link</a><br>`;
+                    if (ev.url) html += `<a href="${ev.url}" target="_blank" class="event-link-btn">Event URL</a> `;
                     html += `<button onclick="runModelForEvent('${ev.event_name}', '${ev.start_date}')">Run Model for This Event</button>`;
                     html += `</div>`;
                     return html;
@@ -114,17 +117,17 @@
                 buyDayOverall.setDate(eventDateObj.getDate() - (data.buy_days_overall || 0));
                 let daysUntilBuyOverall = Math.ceil((buyDayOverall - today) / (1000 * 60 * 60 * 24));
 
-                let recommendationColor = '#38a169';
+                let recommendationColor = '#F0EBD8';
                 if (data.recommendation) {
                     const rec = data.recommendation.toLowerCase();
                     if (rec.includes('not purchasing at all') || rec.includes('no, do not buy')) {
                         recommendationColor = '#e53e3e';
                     } else if (rec.includes('buy if you really want') || rec.includes('waiting') || rec.includes('do not recommend buying right now')) {
-                        recommendationColor = '#4b6cb7';
+                        recommendationColor = '#3E5C76';
                     } else if (rec.includes('optimal time has passed') || rec.includes('optimal time recently passed') || rec.includes('prices may be higher')) {
-                        recommendationColor = '#eab308';
+                        recommendationColor = '#748CAB';
                     } else if (rec.includes('buy now') || rec.includes('now is the optimal time to buy')) {
-                        recommendationColor = '#38a169';
+                        recommendationColor = '#F0EBD8';
                     }
                 }
 
@@ -137,15 +140,15 @@
 
                     <div class="results-grid">
                       <div class="result-card">
-                        <h3><span>🎯</span>Prediction</h3>
-                        <div class="result-item"><b>Probability optimal:</b> <span style="color:#4b6cb7; font-weight:600;">${typeof data.optimal_probability === 'number' ? data.optimal_probability.toFixed(2) : (data.optimal_probability !== undefined && data.optimal_probability !== null ? data.optimal_probability : 'N/A')}</span></div>
-                        <div class="result-item"><b>Predicted price range:</b> <span style="color:#2a3d66; font-weight:600;">$${data.predicted_price_range && data.predicted_price_range[0] !== undefined ? data.predicted_price_range[0].toFixed(2) : 'N/A'} - $${data.predicted_price_range && data.predicted_price_range[1] !== undefined ? data.predicted_price_range[1].toFixed(2) : 'N/A'}</span></div>
-                        <div class="result-item"><b>Buy if price ≤</b> <span style="color:#4b6cb7; font-weight:600;">$${data.buy_price_range && data.buy_price_range[1] !== undefined ? data.buy_price_range[1].toFixed(2) : 'N/A'}</span></div>
+                        <h3 style="color:#fff;">Prediction</h3>
+                        <div class="result-item"><b>Probability optimal:</b> <span style="color:#748CAB; font-weight:600;">${typeof data.optimal_probability === 'number' ? data.optimal_probability.toFixed(2) : (data.optimal_probability !== undefined && data.optimal_probability !== null ? data.optimal_probability : 'N/A')}</span></div>
+                        <div class="result-item"><b>Predicted price range:</b> <span style="color:#748CAB; font-weight:600;">$${data.predicted_price_range && data.predicted_price_range[0] !== undefined ? data.predicted_price_range[0].toFixed(2) : 'N/A'} - $${data.predicted_price_range && data.predicted_price_range[1] !== undefined ? data.predicted_price_range[1].toFixed(2) : 'N/A'}</span></div>
+                        <div class="result-item"><b>Buy if price ≤</b> <span style="color:#748CAB; font-weight:600;">$${data.buy_price_range && data.buy_price_range[1] !== undefined ? data.buy_price_range[1].toFixed(2) : 'N/A'}</span></div>
                       </div>
                       <div class="result-card">
-                        <h3><span>⏱️</span>Timing Analysis</h3>
-                        <div class="result-item"><b>Overall Optimal Buy Days:</b> <span style="color:#4b6cb7; font-weight:600;">${data.buy_days_overall || 'N/A'} days before event</span></div>
-                        <div class="result-item"><b>Recommendation:</b> <span style="color:${recommendationColor}; font-weight:600;">${data.recommendation || 'N/A'}</span></div>
+                        <h3 style="color:#fff;">Timing Analysis</h3>
+                        <div class="result-item"><b>Overall Optimal Buy Days:</b> <span style="color:#748CAB; font-weight:600;">${data.buy_days_overall || 'N/A'} days before event</span></div>
+                        <div class="result-item"><b>Recommendation:</b> <span style="color:#748CAB; font-weight:600;">${data.recommendation || 'N/A'}</span></div>
                       </div>
                     </div>
                     
@@ -169,11 +172,11 @@
                             buyDaySection.setDate(buyDaySection.getDate() - (buyDays || 0));
                             let daysUntilBuySection = Math.ceil((buyDaySection - new Date()) / (1000 * 60 * 60 * 24));
                             return `<tr>
-                              <td style="font-weight:600;">${section}</td>
-                              <td style="text-align:center; color:#2a3d66; font-weight:600;">$${predPrice !== null && predPrice !== undefined ? predPrice.toFixed(2) : 'N/A'}</td>
-                              <td style="text-align:center; color:#4b6cb7; font-weight:600;">$${buyRange && buyRange[1] ? buyRange[1].toFixed(2) : 'N/A'}</td>
-                              <td style="text-align:center;">${buyDays !== undefined ? buyDays + ' days in advance' : 'N/A'}</td>
-                              <td style="text-align:center; color:#2a3d66; font-weight:600;">${Math.max(0, daysUntilBuySection) === 0 ? 'today' : Math.max(0, daysUntilBuySection) + ' days from now'}</td>
+                              <td style="font-weight:600; color:#1D2D44;">${section}</td>
+                              <td style="text-align:center; color:#1D2D44; font-weight:600;">$${predPrice !== null && predPrice !== undefined ? predPrice.toFixed(2) : 'N/A'}</td>
+                              <td style="text-align:center; color:#1D2D44; font-weight:600;">$${buyRange && buyRange[1] ? buyRange[1].toFixed(2) : 'N/A'}</td>
+                              <td style="text-align:center; color:#1D2D44;">${buyDays !== undefined ? buyDays + ' days in advance' : 'N/A'}</td>
+                              <td style="text-align:center; color:#1D2D44; font-weight:600;">${Math.max(0, daysUntilBuySection) === 0 ? 'today' : Math.max(0, daysUntilBuySection) + ' days from now'}</td>
                             </tr>`;
                           }).join('')}
                         </tbody>

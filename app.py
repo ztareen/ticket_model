@@ -208,7 +208,8 @@ def run_script():
             predicted_price_range = [pred_price_low, pred_price_high]
             # Calculate if optimal time has passed
             current_days_until_event = current_features[0] if len(current_features) > 0 else 30
-            optimal_time_has_passed = current_days_until_event > average_best_days
+            overall_optimal_days = average_best_days
+            days_until_optimal = int(round(overall_optimal_days - current_days_until_event))
 
             # Calculate upcoming optimal time for each section group
             upcoming_optimal_time_by_section = {}
@@ -221,29 +222,32 @@ def run_script():
                     upcoming_optimal_time_by_section[group] = days_to_optimal
                 except Exception:
                     upcoming_optimal_time_by_section[group] = 0
-            
-            if optimal_time_has_passed:
-                # If optimal time has passed, adjust recommendation based on how far past we are
-                days_past_optimal = current_days_until_event - average_best_days
-                if days_past_optimal <= 7:
-                    recommendation = 'We recommend buying now - optimal time recently passed!'
+
+            # Recommendation is always consistent with overall optimal time to buy
+            if days_until_optimal > 1:
+                recommendation = f"We do not recommend buying right now. You should buy in {days_until_optimal} days."
+                rec_code = 'yellow'
+            elif days_until_optimal == 1:
+                recommendation = "We do not recommend buying right now. You should buy tomorrow."
+                rec_code = 'yellow'
+            elif days_until_optimal == 0:
+                recommendation = "Now is the optimal time to buy."
+                rec_code = 'green'
+            else:  # days_until_optimal < 0
+                if abs(days_until_optimal) <= 3:
+                    recommendation = "Optimal time just passed, but it’s still a good time to buy."
                     rec_code = 'green'
-                elif days_past_optimal <= 14:
-                    recommendation = 'We recommend buying now - optimal time has passed'
+                elif abs(days_until_optimal) <= 7:
+                    recommendation = "We recommend buying now - optimal time recently passed!"
+                    rec_code = 'green'
+                elif abs(days_until_optimal) <= 14:
+                    recommendation = "We recommend buying now - optimal time has passed. Prices may start rising soon."
+                    rec_code = 'yellow'
+                elif abs(days_until_optimal) <= 30:
+                    recommendation = "Optimal window has passed, but tickets are still available. Expect higher prices."
                     rec_code = 'yellow'
                 else:
-                    recommendation = 'We recommend buying now - prices may be higher'
-                    rec_code = 'yellow'
-            else:
-                # If optimal time is in the future
-                if optimal_prob > 0.7:
-                    recommendation = 'We recommend buying now!'
-                    rec_code = 'green'
-                elif optimal_prob > 0.4:
-                    recommendation = 'We recommend waiting'
-                    rec_code = 'yellow'
-                else:
-                    recommendation = 'We recommend not purchasing at all'
+                    recommendation = "Optimal time has passed – prices are likely above average. Buy as soon as possible."
                     rec_code = 'yellow'
             event_details = {}
             if not df.empty:

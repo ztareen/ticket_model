@@ -739,15 +739,14 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
         print(f"Current days until event: {current_days}")
         
         # Get consistent timing recommendations
-        # Make average_best_days more dynamic and less repetitive
+        # Make average_best_days deterministic and based on available data
         if 'overall_median_days' in timing_analysis and not pd.isna(timing_analysis['overall_median_days']):
             average_best_days = float(timing_analysis['overall_median_days'])
         elif 'overall_avg_days' in timing_analysis and not pd.isna(timing_analysis['overall_avg_days']):
             average_best_days = float(timing_analysis['overall_avg_days'])
         else:
-            # Add some variability to fallback
-            import random
-            average_best_days = random.randint(10, 22)
+            # Fallback: use 14 as a typical value for baseball
+            average_best_days = 14.0
         average_best_days = max(3, min(25, average_best_days))
         print(f"Average best days: {average_best_days}")
 
