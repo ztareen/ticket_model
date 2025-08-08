@@ -100,9 +100,10 @@ def run_script():
                 current_features = np.concatenate([current_features, np.zeros(n_features - len(current_features))])
             optimal_prob, predicted_price = optimizer.predict_optimal_timing(current_features)
             # Ensure optimal_prob is always a valid float between 0 and 1, never NaN or None
+            import math
             try:
                 optimal_prob = float(optimal_prob)
-                if optimal_prob is None or not (0.0 <= optimal_prob <= 1.0) or (isinstance(optimal_prob, float) and (optimal_prob != optimal_prob)):
+                if optimal_prob is None or math.isnan(optimal_prob) or not (0.0 <= optimal_prob <= 1.0):
                     optimal_prob = 0.5
             except Exception:
                 optimal_prob = 0.5
@@ -116,7 +117,7 @@ def run_script():
                 predicted_price = float(predicted_price)
             except Exception:
                 predicted_price = 0.0
-            average_best_days = float(timing_analysis['overall_avg_days'])
+            average_best_days = float(timing_analysis.get('overall_avg_days', 10))
             if optimizer.feature_importance is not None:
                 top_features = optimizer.feature_importance.head(3)['feature'].tolist()
             else:

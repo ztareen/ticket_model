@@ -5,9 +5,9 @@
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='frontend.css') }}">
 </head>
 <body>
-    <h1 style="margin-bottom: 24px;">🎟️ Ticket Timing Predictor</h1>
-    <div id="output" style="display:none; max-width: 900px; margin: 0 auto 24px auto; background: #fff2; border-radius: 12px; box-shadow: 0 2px 12px #0002; padding: 24px;"></div>
-    <div id="events" style="max-width: 900px; margin: 0 auto;"></div>
+    <h1>Mariners Ticket Timing Predictor</h1>
+    <div id="output"></div>
+    <div id="events"></div>
 
     <script>
         function clearBoxes(except) {
@@ -36,7 +36,6 @@
                     eventsDiv.innerText = "Error: " + events.error;
                     return;
                 }
-                // Handle both single event object and array of events
                 if (!Array.isArray(events)) {
                     if (typeof events === "object" && events !== null) {
                         events = [events];
@@ -45,25 +44,22 @@
                         return;
                     }
                 }
-                // Filter for upcoming events only (from today onward)
                 const today = new Date();
                 events = events.filter(ev => {
                     if (!ev.start_date) return false;
                     const eventDate = new Date(ev.start_date);
                     return eventDate >= today;
                 });
-                // Sort by date ascending
                 events.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
-                // Show only the next 24 events
                 events = events.slice(0, 24);
                 if (events.length === 0) {
                     eventsDiv.innerText = "No upcoming events found.";
                     return;
                 }
                 eventsDiv.innerHTML = events.map(ev => {
-                    let html = `<div class='event-card' style="border:1px solid #bbb; margin:18px 0; padding:18px; background:#fff; border-radius:14px; box-shadow:0 2px 8px #0001;">`;
-                    html += `<h3 style='margin-bottom:10px; color:#222;'>${ev.event_name || "Unnamed Event"}</h3>`;
-                    if (ev.image) html += `<img src="${ev.image}" alt="event image" style="max-width:180px; margin-bottom:10px; border-radius:8px;"><br>`;
+                    let html = `<div class='event-card'>`;
+                    html += `<h3>${ev.event_name || "Unnamed Event"}</h3>`;
+                    if (ev.image) html += `<img src="${ev.image}" alt="event image"><br>`;
                     if (ev.start_date || ev.start_time) html += `<b>Date:</b> ${ev.start_date || ""}${ev.start_time ? " " + ev.start_time : ""}<br>`;
                     if (ev.venue_name || ev.city || ev.state || ev.country) {
                         let venue = [ev.venue_name, ev.city, ev.state, ev.country].filter(Boolean).join(", ");
@@ -81,8 +77,7 @@
                     if (ev.genre) html += `<b>Genre:</b> ${ev.genre}<br>`;
                     if (ev.subGenre) html += `<b>SubGenre:</b> ${ev.subGenre}<br>`;
                     if (ev.url) html += `<b>Event URL:</b> <a href="${ev.url}" target="_blank">Link</a><br>`;
-                    // Add button to run model for this event
-                    html += `<button style="margin-top:10px; padding:8px 16px; background:#4b6cb7; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;" onclick="runModelForEvent('${ev.event_name}', '${ev.start_date}')">Run Model for This Event</button>`;
+                    html += `<button onclick="runModelForEvent('${ev.event_name}', '${ev.start_date}')">Run Model for This Event</button>`;
                     html += `</div>`;
                     return html;
                 }).join('');
@@ -91,12 +86,10 @@
             }
         }
 
-        // Load events automatically on page load
         window.addEventListener('DOMContentLoaded', () => {
             getEvents();
         });
 
-        // Add JS function to run model for a specific event
         async function runModelForEvent(eventName, eventDate) {
             clearBoxes("output");
             const outputDiv = document.getElementById("output");
@@ -113,120 +106,82 @@
                     outputDiv.innerText = "Error: " + data.error;
                     return;
                 }
-                
-                // Calculate countdowns
+
                 const today = new Date();
                 const eventDateObj = new Date(data.event_date);
-                
-                // Overall buy day countdown
+
                 let buyDayOverall = new Date(eventDateObj);
                 buyDayOverall.setDate(eventDateObj.getDate() - (data.buy_days_overall || 0));
                 let daysUntilBuyOverall = Math.ceil((buyDayOverall - today) / (1000 * 60 * 60 * 24));
 
-                // Color coordination for all backend recommendation messages
-                let recommendationColor = '#38a169'; // default green
+                let recommendationColor = '#38a169';
                 if (data.recommendation) {
                     const rec = data.recommendation.toLowerCase();
-                    if (
-                        rec.includes('not purchasing at all') ||
-                        rec.includes('no, do not buy')
-                    ) {
-                        recommendationColor = '#e53e3e'; // red
-                    } else if (
-                        rec.includes('buy if you really want') ||
-                        rec.includes('waiting') ||
-                        rec.includes('do not recommend buying right now')
-                    ) {
-                        recommendationColor = '#4b6cb7'; // blue
-                    } else if (
-                        rec.includes('optimal time has passed') ||
-                        rec.includes('optimal time recently passed') ||
-                        rec.includes('prices may be higher')
-                    ) {
-                        recommendationColor = '#eab308'; // amber/yellow
-                    } else if (
-                        rec.includes('buy now') ||
-                        rec.includes('now is the optimal time to buy')
-                    ) {
-                        recommendationColor = '#38a169'; // green
+                    if (rec.includes('not purchasing at all') || rec.includes('no, do not buy')) {
+                        recommendationColor = '#e53e3e';
+                    } else if (rec.includes('buy if you really want') || rec.includes('waiting') || rec.includes('do not recommend buying right now')) {
+                        recommendationColor = '#4b6cb7';
+                    } else if (rec.includes('optimal time has passed') || rec.includes('optimal time recently passed') || rec.includes('prices may be higher')) {
+                        recommendationColor = '#eab308';
+                    } else if (rec.includes('buy now') || rec.includes('now is the optimal time to buy')) {
+                        recommendationColor = '#38a169';
                     }
                 }
 
-                outputDiv.style.display = "block";
                 outputDiv.innerHTML = `
-                  <div style="background:#fff; border-radius:18px; box-shadow:0 2px 16px #0002; padding:36px 32px; max-width:850px; margin:0 auto; border:1px solid #e0e4f6;">
-                    <div style="text-align:center; margin-bottom:24px; border-bottom:1px solid #e0e4f6; padding-bottom:16px;">
-                      <h2 style="margin:0; color:#2a3d66; font-size:2.1em; font-weight:700;">${data.event || eventName}</h2>
-                      <div style="font-size:1.3em; color:#4b6cb7; margin-top:12px; margin-bottom:16px;"><b>Date:</b> ${data.event_date || eventDate}</div>
+                  <div class="results-container">
+                    <div class="results-header">
+                      <h2>${data.event || eventName}</h2>
+                      <div class="date"><b>Date:</b> ${data.event_date || eventDate}</div>
                     </div>
-                    
-                    <div style="margin-bottom:24px; color:#333; font-size:1.08em; text-align:center;">
-                      <b>Details:</b> <span style="color:#555;">${Object.entries(data.event_details || {}).map(([k, v]) => `<span style='margin-right:18px;'><b>${k}:</b> ${v || 'N/A'}</span>`).join('')}</span>
-                    </div>
-                    
-                    <div style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:24px;">
-                      <div style="flex:1; min-width:220px; background:#f4f7fd; border-radius:12px; padding:22px; box-shadow:0 1px 6px #0001;">
-                        <h3 style="margin-top:0; color:#2a3d66; font-size:1.15em; font-weight:600; display:flex; align-items:center; justify-content:center;"><span style='margin-right:8px;'>🎯</span>Prediction</h3>
-                        <div style="margin-bottom:10px; text-align:center;"><b>Probability optimal:</b> <span style="color:#4b6cb7; font-weight:600;">${data.optimal_probability || 'N/A'}</span></div>
-                        <div style="margin-bottom:10px; text-align:center;"><b>Predicted price range:</b> <span style="color:#2a3d66; font-weight:600;">$${data.predicted_price_range && data.predicted_price_range[0] !== undefined ? data.predicted_price_range[0].toFixed(2) : 'N/A'} - $${data.predicted_price_range && data.predicted_price_range[1] !== undefined ? data.predicted_price_range[1].toFixed(2) : 'N/A'}</span></div>
-                        <div style="margin-bottom:10px; text-align:center;"><b>Buy if price ≤</b> <span style="color:#4b6cb7; font-weight:600;">$${data.buy_price_range && data.buy_price_range[1] !== undefined ? data.buy_price_range[1].toFixed(2) : 'N/A'}</span></div>
-                        <div style="text-align:center;"><b>Recommendation:</b> <span style="color:${recommendationColor}; font-weight:600;">${data.recommendation || 'N/A'}</span></div>
+
+                    <div class="results-grid">
+                      <div class="result-card">
+                        <h3><span>🎯</span>Prediction</h3>
+                        <div class="result-item"><b>Probability optimal:</b> <span style="color:#4b6cb7; font-weight:600;">${typeof data.optimal_probability === 'number' ? data.optimal_probability.toFixed(2) : (data.optimal_probability !== undefined && data.optimal_probability !== null ? data.optimal_probability : 'N/A')}</span></div>
+                        <div class="result-item"><b>Predicted price range:</b> <span style="color:#2a3d66; font-weight:600;">$${data.predicted_price_range && data.predicted_price_range[0] !== undefined ? data.predicted_price_range[0].toFixed(2) : 'N/A'} - $${data.predicted_price_range && data.predicted_price_range[1] !== undefined ? data.predicted_price_range[1].toFixed(2) : 'N/A'}</span></div>
+                        <div class="result-item"><b>Buy if price ≤</b> <span style="color:#4b6cb7; font-weight:600;">$${data.buy_price_range && data.buy_price_range[1] !== undefined ? data.buy_price_range[1].toFixed(2) : 'N/A'}</span></div>
                       </div>
-                      <div style="flex:1; min-width:220px; background:#f4f7fd; border-radius:12px; padding:22px; box-shadow:0 1px 6px #0001;">
-                        <h3 style="margin-top:0; color:#2a3d66; font-size:1.15em; font-weight:600; display:flex; align-items:center; justify-content:center;"><span style='margin-right:8px;'>⏱️</span>Timing Analysis</h3>
-                        <div style="margin-bottom:10px; text-align:center;"><b>Overall Optimal Buy Days:</b> <span style="color:#4b6cb7; font-weight:600;">${data.buy_days_overall || 'N/A'} days before event</span></div>
-                        <div style="margin-bottom:10px; text-align:center;"><b>Upcoming Optimal Time to Buy (If you are absolutely set on going):</b> <span style="color:#2a3d66; font-weight:600;">${Math.max(0, daysUntilBuyOverall) === 0 ? 'today' : Math.max(0, daysUntilBuyOverall) + ' days from now'}</span></div>
+                      <div class="result-card">
+                        <h3><span>⏱️</span>Timing Analysis</h3>
+                        <div class="result-item"><b>Overall Optimal Buy Days:</b> <span style="color:#4b6cb7; font-weight:600;">${data.buy_days_overall || 'N/A'} days before event</span></div>
+                        <div class="result-item"><b>Recommendation:</b> <span style="color:${recommendationColor}; font-weight:600;">${data.recommendation || 'N/A'}</span></div>
                       </div>
                     </div>
                     
-                    <div style="margin-bottom:24px;">
-                      <h3 style="color:#2a3d66; font-size:1.4em; font-weight:600; margin-bottom:16px; text-align:center;">Section-wise Prediction</h3>
-                      <div style="overflow-x:auto;">
-                        <table border='0' style='border-collapse:collapse; width:100%; background:#fff; box-shadow:0 1px 6px #0001; border-radius:8px; overflow:hidden; font-size:1em;'>
-                          <thead style="background:#f4f7fd;">
-                            <tr style="color:#2a3d66; font-weight:700;">
-                              <th style="padding:12px 8px; text-align:left;">Section</th>
-                              <th style="padding:12px 8px; text-align:center;">Predicted Price</th>
-                              <th style="padding:12px 8px; text-align:center;">Buy If Price ≤</th>
-                              <th style="padding:12px 8px; text-align:center;">Absolute Optimal Time to Buy</th>
-                              <th style="padding:12px 8px; text-align:center;">Upcoming Optimal Time</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            ${Object.keys(data.predicted_price_by_section || {}).map(section => {
-                              const predPrice = data.predicted_price_by_section[section];
-                              const buyRange = data.buy_price_by_section && data.buy_price_by_section[section];
-                              const buyDays = data.buy_days_by_section && data.buy_days_by_section[section];
-                              let buyDaySection = new Date(data.event_date || eventDate);
-                              buyDaySection.setDate(buyDaySection.getDate() - (buyDays || 0));
-                              let daysUntilBuySection = Math.ceil((buyDaySection - new Date()) / (1000 * 60 * 60 * 24));
-                              return `<tr style="border-bottom:1px solid #f0f0f0;">
-                                <td style="padding:12px 8px; font-weight:600;">${section}</td>
-                                <td style="padding:12px 8px; text-align:center; color:#2a3d66; font-weight:600;">$${predPrice !== null && predPrice !== undefined ? predPrice.toFixed(2) : 'N/A'}</td>
-                                <td style="padding:12px 8px; text-align:center; color:#4b6cb7; font-weight:600;">$${buyRange && buyRange[1] ? buyRange[1].toFixed(2) : 'N/A'}</td>
-                                <td style="padding:12px 8px; text-align:center;">${buyDays !== undefined ? buyDays + ' days in advance' : 'N/A'}</td>
-                                <td style="padding:12px 8px; text-align:center; color:#2a3d66; font-weight:600;">${Math.max(0, daysUntilBuySection) === 0 ? 'today' : Math.max(0, daysUntilBuySection) + ' days from now'}</td>
-                              </tr>`;
-                            }).join('')}
-                          </tbody>
-                        </table>
-                      </div>
+                    <div class="result-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Section</th>
+                            <th style="text-align:center;">Predicted Price</th>
+                            <th style="text-align:center;">Buy If Price ≤</th>
+                            <th style="text-align:center;">Absolute Optimal Time to Buy</th>
+                            <th style="text-align:center;">Upcoming Optimal Time to Buy</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${Object.keys(data.predicted_price_by_section || {}).map(section => {
+                            const predPrice = data.predicted_price_by_section[section];
+                            const buyRange = data.buy_price_by_section && data.buy_price_by_section[section];
+                            const buyDays = data.buy_days_by_section && data.buy_days_by_section[section];
+                            let buyDaySection = new Date(data.event_date || eventDate);
+                            buyDaySection.setDate(buyDaySection.getDate() - (buyDays || 0));
+                            let daysUntilBuySection = Math.ceil((buyDaySection - new Date()) / (1000 * 60 * 60 * 24));
+                            return `<tr>
+                              <td style="font-weight:600;">${section}</td>
+                              <td style="text-align:center; color:#2a3d66; font-weight:600;">$${predPrice !== null && predPrice !== undefined ? predPrice.toFixed(2) : 'N/A'}</td>
+                              <td style="text-align:center; color:#4b6cb7; font-weight:600;">$${buyRange && buyRange[1] ? buyRange[1].toFixed(2) : 'N/A'}</td>
+                              <td style="text-align:center;">${buyDays !== undefined ? buyDays + ' days in advance' : 'N/A'}</td>
+                              <td style="text-align:center; color:#2a3d66; font-weight:600;">${Math.max(0, daysUntilBuySection) === 0 ? 'today' : Math.max(0, daysUntilBuySection) + ' days from now'}</td>
+                            </tr>`;
+                          }).join('')}
+                        </tbody>
+                      </table>
                     </div>
-                    
-                    <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:24px;">
-                      <div style="flex:1; min-width:220px; background:#f4f7fd; border-radius:12px; padding:22px; box-shadow:0 1px 6px #0001;">
-                        <h3 style="margin-top:0; color:#2a3d66; font-size:1.13em; font-weight:600; display:flex; align-items:center; justify-content:center;"><span style='margin-right:8px;'>🧠</span>Feature Importance</h3>
-                        <div style="color:#333; text-align:center;">${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.map(f => `<span style='margin-right:10px; color:#4b6cb7; font-weight:600;'>${f}</span>`).join('') : 'N/A'}</div>
-                      </div>
-                      <div style="flex:1; min-width:220px; background:#f4f7fd; border-radius:12px; padding:22px; box-shadow:0 1px 6px #0001;">
-                        <h3 style="margin-top:0; color:#2a3d66; font-size:1.13em; font-weight:600; display:flex; align-items:center; justify-content:center;"><span style='margin-right:8px;'>🔎</span>Summary Insights</h3>
-                        <div style="margin-bottom:10px; text-align:center;"><b>Price range:</b> <span style="color:#2a3d66; font-weight:600;">$${data.price_range && data.price_range[0] ? data.price_range[0].toFixed(2) : 'N/A'} - $${data.price_range && data.price_range[1] ? data.price_range[1].toFixed(2) : 'N/A'}</span></div>
-                        <div style="text-align:center;"><b>Key factors:</b> <span style="color:#4b6cb7; font-weight:600;">${data.feature_importance && data.feature_importance.length > 0 ? data.feature_importance.join(', ') : 'N/A'}</span></div>
-                      </div>
-                    </div>
-                    
-                    <div style="text-align:center; margin-top:32px; padding-top:24px; border-top:1px solid #e0e4f6;">
-                      <button onclick="backToHome()" style="padding:12px 28px; background:#4b6cb7; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:1.1em; font-weight:600; box-shadow:0 2px 8px #4b6cb755;">Back to Home</button>
+
+                    <div class="back-button-container">
+                      <button class="back-button" onclick="backToHome()">Back to Home</button>
                     </div>
                   </div>
                 `;
@@ -235,7 +190,6 @@
             }
         }
 
-        // Add backToHome function
         function backToHome() {
             clearBoxes("events");
             getEvents();
