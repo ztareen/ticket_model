@@ -16,9 +16,9 @@ from selenium.webdriver.chrome.service import Service
 #next thing is clicking page 2 and doing it all over again same w/ maybe page 3
 
 class SeatDataScraper:
-    def __init__(self, username, password, search_term="seattle mariners"):
-        self.username = username
-        self.password = password
+    def __init__(self, username="", password="", search_term="seattle mariners"):
+        self.username = ""
+        self.password = ""
         self.search_term = search_term
         self.driver = None
         self.wait = None
@@ -106,21 +106,21 @@ class SeatDataScraper:
             time.sleep(1)
             self.driver.execute_script("arguments[0].value = '';", email_field)
             time.sleep(0.5)
-            self.driver.execute_script("arguments[0].value = arguments[1];", email_field, self.username)
+            self.driver.execute_script("arguments[0].value = arguments[1];", email_field, "")
             time.sleep(0.5)
             email_field.clear()
-            email_field.send_keys(self.username)
-            print(f"Entered email: {self.username}")
+            email_field.send_keys("")
+            print(f"Entered email: [BLANK]")
             
             self.driver.execute_script("arguments[0].scrollIntoView(true);", password_field)
             time.sleep(1)
             self.driver.execute_script("arguments[0].value = '';", password_field)
             time.sleep(0.5)
-            self.driver.execute_script("arguments[0].value = arguments[1];", password_field, self.password)
+            self.driver.execute_script("arguments[0].value = arguments[1];", password_field, "")
             time.sleep(0.5)
             password_field.clear()
-            password_field.send_keys(self.password)
-            print("Entered password")
+            password_field.send_keys("")
+            print("Entered password: [BLANK]")
             
             login_button = None
             button_selectors = [
@@ -740,7 +740,7 @@ def main():
     
     scraper = SeatDataScraper(username, password, search_term)
     try:
-        scraper.run(num_files=30)
+        scraper.run(num_files=50)
     except Exception as e:
         print(f"Script failed with error: {str(e)}")
         input("Press Enter to close the browser...")

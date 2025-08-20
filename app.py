@@ -245,10 +245,10 @@ def run_script():
                     rec_code = 'yellow'
                 elif abs(days_until_optimal) <= 30:
                     recommendation = "Optimal window has passed, but tickets are still available. Expect higher prices."
-                    rec_code = 'yellow'
+                    rec_code = 'red'
                 else:
                     recommendation = "Optimal time has passed – prices are likely above average. Buy as soon as possible."
-                    rec_code = 'yellow'
+                    rec_code = 'red'
             event_details = {}
             if not df.empty:
                 for col in ['venue_id', 'segment', 'genre', 'ticket_status']:

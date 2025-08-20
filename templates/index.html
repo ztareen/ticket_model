@@ -10,7 +10,7 @@
 <body>
     <h1>Mariners Ticket Timing Predictor</h1>
     <div id="output"></div>
-    <div id="events"></div>
+    <div id="events" style="display: flex; flex-direction: column; align-items: center;"></div>
 
     <script>
         function clearBoxes(except) {
@@ -60,7 +60,7 @@
                     return;
                 }
                 eventsDiv.innerHTML = events.map(ev => {
-                    let html = `<div class='event-card'>`;
+                    let html = `<div class='event-card' style="margin: 12px 0; width: 98%; max-width: 900px; text-align: center;">`;
                     html += `<h3>${ev.event_name || "Unnamed Event"}</h3>`;
                     if (ev.image) html += `<img src="${ev.image}" alt="event image"><br>`;
                     if (ev.start_date || ev.start_time) html += `<b>Date:</b> ${ev.start_date || ""}${ev.start_time ? " " + ev.start_time : ""}<br>`;
@@ -71,7 +71,7 @@
                     if (ev.ticket_status) html += `<b>Ticket Status:</b> ${ev.ticket_status}<br>`;
                     if (ev.public_sale_start) html += `<b>Sale Start:</b> ${ev.public_sale_start}<br>`;
                     if (ev.public_sale_end) html += `<b>Sale End:</b> ${ev.public_sale_end}<br>`;
-                    if (ev.seatmap_url) html += `<a href="${ev.seatmap_url}" target="_blank" class="event-link-btn">View Seatmap</a> `;
+                    if (ev.seatmap_url) html += `<b>Seatmap:</b> <a href="${ev.seatmap_url}" target="_blank"><button class='small-btn'>View Seatmap</button></a><br>`;
                     if (ev.accessibility_info) html += `<b>Accessibility:</b> ${ev.accessibility_info}<br>`;
                     if (ev.ticket_limit) html += `<b>Ticket Limit:</b> ${ev.ticket_limit}<br>`;
                     if (ev.timezone) html += `<b>Timezone:</b> ${ev.timezone}<br>`;
@@ -79,7 +79,7 @@
                     if (ev.segment) html += `<b>Segment:</b> ${ev.segment}<br>`;
                     if (ev.genre) html += `<b>Genre:</b> ${ev.genre}<br>`;
                     if (ev.subGenre) html += `<b>SubGenre:</b> ${ev.subGenre}<br>`;
-                    if (ev.url) html += `<a href="${ev.url}" target="_blank" class="event-link-btn">Event URL</a> `;
+                    if (ev.url) html += `<b>Event URL:</b> <a href="${ev.url}" target="_blank"><button class='small-btn'>Link</button></a><br>`;
                     html += `<button onclick="runModelForEvent('${ev.event_name}', '${ev.start_date}')">Run Model for This Event</button>`;
                     html += `</div>`;
                     return html;
@@ -104,7 +104,21 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ event_name: eventName, event_date: eventDate })
                 });
-                const data = await response.json();
+                let data = null;
+                let errorText = null;
+                if (!response.ok) {
+                    // Try to parse error message from JSON, else show status
+                    try {
+                        const errJson = await response.json();
+                        errorText = errJson.error || response.statusText;
+                    } catch (e) {
+                        errorText = response.statusText || 'Unknown error';
+                    }
+                    outputDiv.innerText = "Error: " + errorText;
+                    return;
+                } else {
+                    data = await response.json();
+                }
                 if (data.error) {
                     outputDiv.innerText = "Error: " + data.error;
                     return;
@@ -117,17 +131,16 @@
                 buyDayOverall.setDate(eventDateObj.getDate() - (data.buy_days_overall || 0));
                 let daysUntilBuyOverall = Math.ceil((buyDayOverall - today) / (1000 * 60 * 60 * 24));
 
+
+                // Use backend-provided recommendation_code for color
                 let recommendationColor = '#F0EBD8';
-                if (data.recommendation) {
-                    const rec = data.recommendation.toLowerCase();
-                    if (rec.includes('not purchasing at all') || rec.includes('no, do not buy')) {
-                        recommendationColor = '#e53e3e';
-                    } else if (rec.includes('buy if you really want') || rec.includes('waiting') || rec.includes('do not recommend buying right now')) {
-                        recommendationColor = '#3E5C76';
-                    } else if (rec.includes('optimal time has passed') || rec.includes('optimal time recently passed') || rec.includes('prices may be higher')) {
-                        recommendationColor = '#748CAB';
-                    } else if (rec.includes('buy now') || rec.includes('now is the optimal time to buy')) {
-                        recommendationColor = '#F0EBD8';
+                if (data.recommendation_code) {
+                    if (data.recommendation_code === 'green') {
+                        recommendationColor = '#4BB543'; // green
+                    } else if (data.recommendation_code === 'yellow') {
+                        recommendationColor = '#FFD600'; // yellow
+                    } else if (data.recommendation_code === 'red') {
+                        recommendationColor = '#e53e3e'; // red
                     }
                 }
 
@@ -148,7 +161,7 @@
                       <div class="result-card">
                         <h3 style="color:#fff;">Timing Analysis</h3>
                         <div class="result-item"><b>Overall Optimal Buy Days:</b> <span style="color:#748CAB; font-weight:600;">${data.buy_days_overall || 'N/A'} days before event</span></div>
-                        <div class="result-item"><b>Recommendation:</b> <span style="color:#748CAB; font-weight:600;">${data.recommendation || 'N/A'}</span></div>
+                        <div class="result-item"><b>Recommendation:</b> <span style="color:${recommendationColor}; font-weight:600;">${data.recommendation || 'N/A'}</span></div>
                       </div>
                     </div>
                     

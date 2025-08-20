@@ -866,8 +866,13 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
         price_25th = float(price_stats.get('25th_percentile', df['price'].quantile(0.25)))
         price_75th = float(price_stats.get('75th_percentile', df['price'].quantile(0.75)))
 
+        price_15th = float(df['price'].quantile(0.15))
+        # Lower bound: 15th percentile, fallback to min if NaN
+        buy_lower = price_15th if not pd.isna(price_15th) else price_min
+        # Upper bound: min(25th percentile, median price)
+        buy_upper = min(price_25th, float(df['price'].median()))
+        buy_price_range = [round(buy_lower, 2), round(buy_upper, 2)]
         price_range = [round(price_min, 2), round(price_max, 2)]
-        buy_price_range = [round(price_25th, 2), round(price_25th * 1.15, 2)]
         predicted_price_range = [round(price_25th, 2), round(price_75th, 2)]
 
         # Section-specific analysis
@@ -882,12 +887,18 @@ def run_ticket_model(seat_data_path, event_data_path, target_game, target_date):
                 try:
                     section_min = float(section_data['price'].min())
                     section_max = float(section_data['price'].max())
+                    section_15th = float(section_data['price'].quantile(0.15))
                     section_25th = float(section_data['price'].quantile(0.25))
                     section_median = float(section_data['price'].median())
 
-                    if not any(pd.isna([section_min, section_max, section_25th, section_median])):
+                    # Lower bound: 15th percentile, fallback to min if NaN
+                    sec_buy_lower = section_15th if not pd.isna(section_15th) else section_min
+                    # Upper bound: min(25th percentile, median)
+                    sec_buy_upper = min(section_25th, section_median)
+
+                    if not any(pd.isna([section_min, section_max, section_25th, section_median, sec_buy_lower, sec_buy_upper])):
                         price_range_by_section[str(section)] = [round(section_min, 2), round(section_max, 2)]
-                        buy_price_by_section[str(section)] = [round(section_25th, 2), round(section_25th * 1.15, 2)]
+                        buy_price_by_section[str(section)] = [round(sec_buy_lower, 2), round(sec_buy_upper, 2)]
                         predicted_price_by_section[str(section)] = round(section_median, 2)
                     else:
                         price_range_by_section[str(section)] = price_range

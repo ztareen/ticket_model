@@ -113,18 +113,18 @@ def test_login():
         time.sleep(1)
         email_field.clear()
         time.sleep(0.5)
-        email_field.send_keys(username)
-        time.sleep(0.5)
-        print(f"✓ Entered email: {username}")
+    email_field.send_keys("")
+    time.sleep(0.5)
+    print(f"✓ Entered email: [BLANK]")
         
         # Clear and enter password
         driver.execute_script("arguments[0].scrollIntoView(true);", password_field)
         time.sleep(1)
         password_field.clear()
         time.sleep(0.5)
-        password_field.send_keys(password)
-        time.sleep(0.5)
-        print("✓ Entered password")
+    password_field.send_keys("")
+    time.sleep(0.5)
+    print("✓ Entered password: [BLANK]")
         
         # Take screenshot after entering credentials
         driver.save_screenshot("credentials_entered.png")
