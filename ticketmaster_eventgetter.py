@@ -206,6 +206,9 @@ upcoming_events = list(filter(is_upcoming, event_info_list))
 upcoming_events.sort(key=lambda ev: ev.get('start_date', ''))
 event_info = upcoming_events
 
-filename = f"event_data_{datetime.now().strftime('%Y.%m.%d')}.csv"
+import os
+data_dir = os.path.join(os.path.dirname(__file__), "data")
+os.makedirs(data_dir, exist_ok=True)
+filename = os.path.join(data_dir, f"event_data_{datetime.now().strftime('%Y.%m.%d')}.csv")
 df.to_csv(filename, index=False)
 print(f"Saved {len(df)} events to {filename} (sorted by date)")

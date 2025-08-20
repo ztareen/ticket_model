@@ -662,7 +662,7 @@ class SeatDataScraper:
         """Rename the most recently downloaded CSV file and move it to the target folder"""
         try:
             # Set the target directory
-            target_dir = r"C:\Users\zarak\Downloads\TestData_Mariners"
+            target_dir = self.data_dir
             os.makedirs(target_dir, exist_ok=True)
             # Get the most recent CSV file in the current directory
             downloads_dir = os.getcwd()

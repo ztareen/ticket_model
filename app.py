@@ -78,11 +78,11 @@ def run_script():
             # Replace spaces with dashes
             opponent = opponent.replace(' ', '-')
             seat_data_filename = f"Seattle-Mariners-vs-{opponent}-{event_date}.csv"
-            seat_data_dir = r"C:\Users\zarak\Downloads\TestData_Mariners"
-            seat_data_path = os.path.join(seat_data_dir, seat_data_filename)
+            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            seat_data_path = os.path.join(data_dir, seat_data_filename)
             # Use today's event data file
             today = datetime.now().date()
-            event_data_path = f"C:/Users/zarak/OneDrive/Documents/GitHub/ticket_model/event_data_{today.year}.{today.month:02d}.{today.day:02d}.csv"
+            event_data_path = os.path.join(data_dir, f"event_data_{today.year}.{today.month:02d}.{today.day:02d}.csv")
             # Run the model for this event
             from ticket_model import TicketTimingOptimizer
             optimizer = TicketTimingOptimizer()

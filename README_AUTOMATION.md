@@ -1,10 +1,18 @@
+
 # Ticketmaster Event Data Collection - Automation Guide
 
-This guide explains how to automatically run your `ticketmaster_eventgetter.py` script using different methods.
+This guide explains how to automatically run your `ticketmaster_eventgetter.py` and related scripts, with updated instructions for the reorganized project structure.
+
+## Project Organization (2025 Update)
+
+- **All data files (CSVs, event data, etc.) are now stored in the `data/` folder.**
+- **Unused scripts and logs are moved to the `archive/` folder.**
+- **All code references for data storage and API calls use the new `data/` path.**
+- **All API keys and passwords have been removed for security.**
 
 ## Prerequisites
 
-First, install the required dependencies:
+Install required dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -14,7 +22,7 @@ pip install -r requirements.txt
 
 ### Option 1: Python Scheduler (Recommended)
 
-Use the `scheduler.py` script which uses the `schedule` library:
+Use the `scheduler.py` script (in the main folder) with the `schedule` library:
 
 ```bash
 python scheduler.py
@@ -22,7 +30,7 @@ python scheduler.py
 
 **Features:**
 - Runs daily at 9:00 AM by default
-- Logs all activities to `scheduler.log`
+- Logs all activities to `archive/scheduler.log`
 - Easy to modify schedule (every 6 hours, weekly, etc.)
 - Can be stopped with Ctrl+C
 
@@ -43,7 +51,7 @@ schedule.every(30).minutes.do(run_ticketmaster_script)
 
 ### Option 2: Enhanced Auto Script
 
-Use the `auto_ticketmaster.py` script which has built-in scheduling:
+Use the `auto_ticketmaster.py` script (in the main folder) with built-in scheduling:
 
 ```bash
 # Run once
@@ -61,13 +69,13 @@ python auto_ticketmaster.py --auto --interval 6
 
 **Features:**
 - No external dependencies needed
-- Built-in logging to `ticketmaster_auto.log`
+- Built-in logging to `archive/ticketmaster_auto.log`
 - Configurable intervals
 - Error handling and retry logic
 
 ### Option 3: Windows Task Scheduler
 
-1. **Create the batch file** (already created as `run_ticketmaster.bat`)
+1. **Create the batch file** (now located in `archive/run_ticketmaster.bat`)
 
 2. **Set up Windows Task Scheduler:**
    - Open "Task Scheduler" (search in Start menu)
@@ -75,7 +83,7 @@ python auto_ticketmaster.py --auto --interval 6
    - Name: "Ticketmaster Data Collection"
    - Trigger: Daily (or your preferred frequency)
    - Action: Start a program
-   - Program: `C:\Users\zarak\OneDrive\Documents\GitHub\ticket_model\run_ticketmaster.bat`
+   - Program: `C:\Users\zarak\OneDrive\Documents\GitHub\ticket_model\archive\run_ticketmaster.bat`
    - Finish
 
 3. **Advanced settings:**
@@ -91,7 +99,7 @@ Create a PowerShell script for more control:
 # run_ticketmaster.ps1
 Set-Location "C:\Users\zarak\OneDrive\Documents\GitHub\ticket_model"
 python ticketmaster_eventgetter.py
-Write-Output "Script completed at $(Get-Date)" | Out-File -Append run_log.txt
+Write-Output "Script completed at $(Get-Date)" | Out-File -Append archive\run_log.txt
 ```
 
 ## Running as a Windows Service
@@ -119,15 +127,15 @@ To run the script as a Windows service (runs even when not logged in):
 ## Monitoring and Logs
 
 All automation methods create log files:
-- `scheduler.log` - For the scheduler script
-- `ticketmaster_auto.log` - For the auto script
-- `run_log.txt` - For batch file runs
+- `archive/scheduler.log` - For the scheduler script
+- `archive/ticketmaster_auto.log` - For the auto script
+- `archive/run_log.txt` - For batch file runs
 
 Check these files to monitor script execution and troubleshoot issues.
 
 ## Recommended Setup
 
-For most users, I recommend **Option 2** (`auto_ticketmaster.py`) because:
+For most users, **Option 2** (`auto_ticketmaster.py`) is recommended because:
 - No external dependencies
 - Built-in error handling
 - Easy to configure
@@ -154,4 +162,4 @@ You can modify any of these scripts to:
 - Adjust the date range
 - Add email notifications
 - Integrate with other data processing scripts
-- Send data to databases instead of CSV files 
+- Send data to databases instead of CSV files
